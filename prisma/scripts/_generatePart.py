@@ -1,25 +1,23 @@
 import asyncio
 from prisma import Prisma
 
+
 async def main() -> None:
     prisma = Prisma()
     await prisma.connect()
 
     # write your queries here
-    await prisma.drawingtype.create_many(
+    await prisma.part.create_many(
         skip_duplicates=True,
         data=[
             {
-                "name": "Main&Transfer",
+                "name": "kv115",
             },
             {
-                "name": "H-config",
+                "name": "kv22",
             },
             {
-                "name": "DoubleBusSingleBreaker",
-            },
-            {
-                "name": "Breaker&aHalf",
+                "name": "universal",
             },
         ]
     )

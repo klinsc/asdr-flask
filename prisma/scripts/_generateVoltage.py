@@ -6,16 +6,16 @@ async def main() -> None:
     await prisma.connect()
 
     # write your queries here
-    await prisma.part.create_many(
+    await prisma.voltage.create_many(
         data=[
             {
-                "name": "kv115",
+                "name": "115",
             },
             {
-                "name": "kv22",
+                "name": "22",
             },
             {
-                "name": "Universal",
+                "name": "33",
             },
         ]
     )
