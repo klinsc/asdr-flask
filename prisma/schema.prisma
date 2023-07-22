@@ -109,7 +109,7 @@ model Drawing {
     description String?
 
     drawingTypeId    String
-    drawtingType     DrawingType        @relation(fields: [drawingTypeId], references: [id])
+    drawingType     DrawingType        @relation(fields: [drawingTypeId], references: [id])
     DrawingComponent DrawingComponent[]
 }
 
