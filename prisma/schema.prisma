@@ -79,22 +79,43 @@ model DrawingType {
     Drawing     Drawing[]
 }
 
-// Part enum
-enum Part {
-    kv115
-    kv22
-    universal
+// Voltage
+model Voltage {
+    id          String   @id @default(cuid())
+    createdAt   DateTime @default(now())
+    updatedAt   DateTime @updatedAt
+    name        String
+    description String?
+    Part        Part[]
+}
+
+// Part
+model Part {
+    id        String   @id @default(cuid())
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+
+    name        String
+    description String?
+
+    voltageId String
+    voltage   Voltage     @relation(fields: [voltageId], references: [id])
+    Component Component[]
 }
 
 // Drawing component 115kv
 model Component {
-    id               String             @id @default(cuid())
-    createdAt        DateTime           @default(now())
-    updatedAt        DateTime           @updatedAt
-    index            Int
-    name             String
-    description      String?
-    Part             Part
+    id          String   @id @default(cuid())
+    createdAt   DateTime @default(now())
+    updatedAt   DateTime @updatedAt
+    index       Int
+    name        String
+    description String?
+    color       String
+
+    partId String
+    Part   Part   @relation(fields: [partId], references: [id])
+
     DrawingComponent DrawingComponent[]
 }
 
@@ -117,7 +138,7 @@ model DrawingComponent {
     createdAt DateTime @default(now())
     updatedAt DateTime @updatedAt
 
-    number  Int
+    number Int
 
     componentId String
     component   Component @relation(fields: [componentId], references: [id])
