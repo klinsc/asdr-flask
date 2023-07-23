@@ -105,11 +105,11 @@ model Drawing {
     id          String   @id @default(cuid())
     createdAt   DateTime @default(now())
     updatedAt   DateTime @updatedAt
-    name        String
+    name        String   @unique
     description String?
 
     drawingTypeId    String
-    drawingType     DrawingType        @relation(fields: [drawingTypeId], references: [id])
+    drawingType      DrawingType        @relation(fields: [drawingTypeId], references: [id])
     DrawingComponent DrawingComponent[]
 }
 
@@ -119,7 +119,7 @@ model DrawingComponent {
     createdAt DateTime @default(now())
     updatedAt DateTime @updatedAt
 
-    number Int
+    count Int
 
     componentId String
     component   Component @relation(fields: [componentId], references: [id])
