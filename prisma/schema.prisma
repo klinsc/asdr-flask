@@ -71,12 +71,13 @@ model MLServer {
 
 // Drawing type
 model DrawingType {
-    id          String    @id @default(cuid())
-    createdAt   DateTime  @default(now())
-    updatedAt   DateTime  @updatedAt
-    name        String    @unique
+    id          String     @id @default(cuid())
+    createdAt   DateTime   @default(now())
+    updatedAt   DateTime   @updatedAt
+    name        String     @unique
     description String?
     Drawing     Drawing[]
+    LineType    LineType[]
 }
 
 enum Part {
@@ -98,6 +99,17 @@ model Component {
     part Part
 
     DrawingComponent DrawingComponent[]
+}
+
+// Line type
+model LineType {
+    id            String      @id @default(cuid())
+    createdAt     DateTime    @default(now())
+    updatedAt     DateTime    @updatedAt
+    name          String
+    description   String?
+    drawingTypeId String
+    drawingType   DrawingType @relation(fields: [drawingTypeId], references: [id])
 }
 
 // Drawing (temp.)
