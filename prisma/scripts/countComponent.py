@@ -32,7 +32,7 @@ async def main() -> None:
             df = df._append({"id": component.id, "index": component.index,
                             "name": component.name, "count": 0}, ignore_index=True)
 
-        with open(f"/txt/{drawing_name}.txt", "r") as f:
+        with open(f"./txt/{drawing_name}.txt", "r") as f:
             lines = f.readlines()
             for line in lines:
                 # split line by space
