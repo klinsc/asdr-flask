@@ -186,9 +186,9 @@ async def valiateComponent(drawingType, drawing_components_df, line_types_df):
                             if (drawing_components_df.loc[drawing_components_df["name"] == child, "count"].any()):
                                 # deduct the child count from the drawing_components_df
                                 drawing_components_df.loc[drawing_components_df["name"]
-                                                            == child, "count"] -= mandatory_component_children[child] * line_type_count
+                                                            == child, "count"] -= 1 * line_type_count
                                 # deduct the child count from the mandatory_component_children_total
-                                mandatory_component_children_total -= mandatory_component_children[child] * \
+                                mandatory_component_children_total -= 1 * \
                                     line_type_count
                                 # set found to True
                                 found = True
