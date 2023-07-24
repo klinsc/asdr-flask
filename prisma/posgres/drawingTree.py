@@ -24,7 +24,12 @@ drawingTree = {
         "115_transformer": {
             "mandatory": {
                 "115_breaker": 1,
-                "115_ds": 3,
+                "ds": {
+                    "_total": 3,
+                    "115_3way_ds_w_motor": 1,
+                    "115_1way_ds_w_motor": 1,
+                    "115_ds": 1,
+                },
                 "115_la": 1,
                 "tx": {
                     "_total": 1,
