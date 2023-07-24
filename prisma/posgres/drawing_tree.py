@@ -92,7 +92,7 @@ drawing_tree = {
                 "22_ll": 1,
                 "Q": 1,
                 "terminator": {
-                    "_total": 1,
+                    "_total": 2,
                     "terminator_w_future": 1,
                     "terminator_single": 1,
                 },
