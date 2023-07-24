@@ -1,7 +1,7 @@
 import asyncio
 from prisma import Prisma
 import pandas as pd
-from drawingTree import drawingTree
+from drawing_tree import drawing_tree
 
 
 async def countBay(drawing_name: str):
@@ -137,12 +137,13 @@ async def countBay(drawing_name: str):
         return drawing_components_df, line_types_df
 
 
-async def valiateComponent(drawingType, drawing_components_df, line_types_df):
+async def valiateComponent(drawing_type, drawing_components_df, line_types_df):
     try:
         print("Start validating component")
 
-        drawingTruth = drawingTree[drawingType]
-        missing_components_df = pd.DataFrame(columns=["name", "count"])
+        drawing_truth = drawing_tree[drawing_type]
+        missing_components_df = pd.DataFrame(
+            columns=["name", "line_type", "count"])
 
         # for each line type in 115 of line_types_df
         for index, row in line_types_df.iterrows():
@@ -151,7 +152,7 @@ async def valiateComponent(drawingType, drawing_components_df, line_types_df):
             # get the line type count
             line_type_count = row["count"]
             # get mandatory components
-            mandatories = drawingTruth[line_type_name]["mandatory"]
+            mandatories = drawing_truth[line_type_name]["mandatory"]
 
             for i in range(line_type_count):
 
@@ -178,7 +179,7 @@ async def valiateComponent(drawingType, drawing_components_df, line_types_df):
                             if (founded == False):
                                 # add missing mandatory component to missing_components_df
                                 missing_components_df = missing_components_df._append(
-                                    {"name": mandatory, "count": 1}, ignore_index=True)
+                                    {"name": mandatory, "line_type": line_type_name, "count": 1}, ignore_index=True)
 
                                 # deduct the mandatory component count
                                 mandatory_count -= 1
@@ -213,7 +214,7 @@ async def valiateComponent(drawingType, drawing_components_df, line_types_df):
                             if (founded == False):
                                 # add missing variant to missing_components_df
                                 missing_components_df = missing_components_df._append(
-                                    {"name": mandatory, "count": 1}, ignore_index=True)
+                                    {"name": mandatory, "line_type": line_type_name, "count": 1}, ignore_index=True)
 
                                 # deduct the variant count from the mandatory_component_variants_total
                                 mandatory_component_variants_total -= 1
@@ -228,9 +229,9 @@ async def valiateComponent(drawingType, drawing_components_df, line_types_df):
 
 
 async def main() -> None:
-    drawingType = "Main&Transfer"
+    drawing_type = "Main&Transfer"
     drawing_components_df, line_types_df = await countBay("e4a96435-bwa-BangWua1-sm-mt")
-    await valiateComponent(drawingType, drawing_components_df, line_types_df)
+    await valiateComponent(drawing_type, drawing_components_df, line_types_df)
 
 
 if __name__ == '__main__':

@@ -80,24 +80,16 @@ model DrawingType {
     LineType    LineType[]
 }
 
-enum Part {
-    kv115
-    kv22
-    universal
-}
-
 /// Drawing component 115kv
 model Component {
-    id          String   @id @default(cuid())
-    createdAt   DateTime @default(now())
-    updatedAt   DateTime @updatedAt
-    index       Int      @unique
-    name        String   @unique
-    description String?
-    color       String
-
-    part Part
-
+    id               String             @id @default(cuid())
+    createdAt        DateTime           @default(now())
+    updatedAt        DateTime           @updatedAt
+    index            Int                @unique
+    name             String             @unique
+    description      String?
+    color            String
+    part             Part
     DrawingComponent DrawingComponent[]
 }
 
@@ -114,12 +106,11 @@ model LineType {
 
 /// Drawing (temp.)
 model Drawing {
-    id          String   @id @default(cuid())
-    createdAt   DateTime @default(now())
-    updatedAt   DateTime @updatedAt
-    name        String   @unique
-    description String?
-
+    id               String             @id @default(cuid())
+    createdAt        DateTime           @default(now())
+    updatedAt        DateTime           @updatedAt
+    name             String             @unique
+    description      String?
     drawingTypeId    String
     drawingType      DrawingType        @relation(fields: [drawingTypeId], references: [id])
     DrawingComponent DrawingComponent[]
@@ -127,15 +118,18 @@ model Drawing {
 
 /// Drawing component (temp.)
 model DrawingComponent {
-    id        String   @id @default(cuid())
-    createdAt DateTime @default(now())
-    updatedAt DateTime @updatedAt
-
-    count Int
-
+    id          String    @id @default(cuid())
+    createdAt   DateTime  @default(now())
+    updatedAt   DateTime  @updatedAt
     componentId String
+    drawingId   String
+    count       Int
     component   Component @relation(fields: [componentId], references: [id])
+    drawing     Drawing   @relation(fields: [drawingId], references: [id])
+}
 
-    drawingId String
-    drawing   Drawing @relation(fields: [drawingId], references: [id])
+enum Part {
+    kv115
+    kv22
+    universal
 }
