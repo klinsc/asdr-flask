@@ -35,7 +35,7 @@ async def main() -> None:
                 "drawingTypeId": drawingType.id
             },
             {
-                "name": "22_feeder",
+                "name": "22_service",
                 "drawingTypeId": drawingType.id
             },
             {
