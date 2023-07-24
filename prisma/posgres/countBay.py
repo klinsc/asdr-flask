@@ -142,6 +142,7 @@ async def valiateComponent(drawingType, drawing_components_df, line_types_df):
         print("Start validating component")
 
         drawingTruth = drawingTree[drawingType]
+        missing_components_df = pd.DataFrame(columns=["name", "count"])
 
         # for each line type in 115 of line_types_df
         for index, row in line_types_df.iterrows():
@@ -149,61 +150,80 @@ async def valiateComponent(drawingType, drawing_components_df, line_types_df):
             line_type_name = row["name"]
             # get the line type count
             line_type_count = row["count"]
-            # get the line type mandatory components
+            # get mandatory components
             mandatories = drawingTruth[line_type_name]["mandatory"]
 
-            # for each mandatory component in the line type
-            for mandatory in mandatories:
-                # check if the mandatory component has no children
-                if isinstance(mandatories[mandatory], int):
-                    # get the mandatory component count
-                    mandatory_count = mandatories[mandatory]
-                    # deduct the mandatory component count from the drawing_components_df
-                    drawing_components_df.loc[drawing_components_df["name"]
-                                              == mandatory, "count"] -= mandatory_count * line_type_count
+            for i in range(line_type_count):
 
-                # means the mandatory component has children
-                else:
-                    # get the mandatory component children
-                    mandatory_component_children = mandatories[
-                        mandatory]
+                # for each mandatory component in the line type
+                for mandatory in mandatories:
+                    # check if the mandatory component has no variant
+                    if isinstance(mandatories[mandatory], int):
+                        # get the mandatory component count
+                        mandatory_count = mandatories[mandatory]
 
-                    # get its _total truth
-                    mandatory_component_children_total = mandatory_component_children["_total"] * \
-                        line_type_count
+                        while (mandatory_count > 0):
+                            founded = False
 
-                    while (mandatory_component_children_total > 0):
-                        found = False
-
-                        for child in mandatory_component_children:
-                            if (child == "_total"):
-                                continue
-
-                            if(found):
-                                break
-
-                            # if there is a child in the drawing_components_df (not None)
-                            if (drawing_components_df.loc[drawing_components_df["name"] == child, "count"].any()):
-                                # deduct the child count from the drawing_components_df
+                            # if there is a mandatory component in the drawing_components_df (not None)
+                            if (drawing_components_df.loc[drawing_components_df["name"] == mandatory, "count"].any()):
+                                # deduct the mandatory component count from the drawing_components_df
                                 drawing_components_df.loc[drawing_components_df["name"]
-                                                            == child, "count"] -= 1 * line_type_count
-                                # deduct the child count from the mandatory_component_children_total
-                                mandatory_component_children_total -= 1 * \
-                                    line_type_count
-                                # set found to True
-                                found = True
+                                                          == mandatory, "count"] -= 1
+                                # deduct the mandatory component count
+                                mandatory_count -= 1
 
-                        # # if there is no child in the drawing_components_df (None)
-                        # if (not found):
-                        #     raise Exception(
-                        #         "There is no child in the drawing_components_df")
+                                founded = True
 
+                            if (founded == False):
+                                # add missing mandatory component to missing_components_df
+                                missing_components_df = missing_components_df._append(
+                                    {"name": mandatory, "count": 1}, ignore_index=True)
+
+                                # deduct the mandatory component count
+                                mandatory_count -= 1
+
+                    # means the mandatory component has variants
+                    else:
+                        # get the mandatory component variants
+                        mandatory_component_variants = mandatories[
+                            mandatory]
+
+                        # get its _total truth
+                        mandatory_component_variants_total = mandatory_component_variants["_total"]
+
+                        while (mandatory_component_variants_total > 0):
+                            founded = False
+
+                            for variant in mandatory_component_variants:
+                                if (variant == "_total"):
+                                    continue
+
+                                # if there is a variant in the drawing_components_df (not None)
+                                if (drawing_components_df.loc[drawing_components_df["name"] == variant, "count"].any()):
+                                    # deduct the variant count from the drawing_components_df
+                                    drawing_components_df.loc[drawing_components_df["name"]
+                                                              == variant, "count"] -= 1
+                                    # deduct the variant count from the mandatory_component_variants_total
+                                    mandatory_component_variants_total -= 1
+
+                                    founded = True
+                                    break
+
+                            if (founded == False):
+                                # add missing variant to missing_components_df
+                                missing_components_df = missing_components_df._append(
+                                    {"name": mandatory, "count": 1}, ignore_index=True)
+
+                                # deduct the variant count from the mandatory_component_variants_total
+                                mandatory_component_variants_total -= 1
 
     except Exception as e:
         print(e)
         return None, None
     finally:
         print("Remaining drawing_components_df:", drawing_components_df)
+        print("Missing components:", missing_components_df)
         print("Finish validating component")
 
 
