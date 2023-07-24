@@ -58,7 +58,7 @@ model VerificationToken {
     @@unique([identifier, token])
 }
 
-// Machine learning server
+/// Machine learning server
 model MLServer {
     id          String   @id @default(cuid())
     createdAt   DateTime @default(now())
@@ -69,7 +69,7 @@ model MLServer {
     selected    Boolean  @default(false)
 }
 
-// Drawing type
+/// Drawing type
 model DrawingType {
     id          String     @id @default(cuid())
     createdAt   DateTime   @default(now())
@@ -86,7 +86,7 @@ enum Part {
     universal
 }
 
-// Drawing component 115kv
+/// Drawing component 115kv
 model Component {
     id          String   @id @default(cuid())
     createdAt   DateTime @default(now())
@@ -101,7 +101,7 @@ model Component {
     DrawingComponent DrawingComponent[]
 }
 
-// Line type
+/// Line type
 model LineType {
     id            String      @id @default(cuid())
     createdAt     DateTime    @default(now())
@@ -112,7 +112,7 @@ model LineType {
     drawingType   DrawingType @relation(fields: [drawingTypeId], references: [id])
 }
 
-// Drawing (temp.)
+/// Drawing (temp.)
 model Drawing {
     id          String   @id @default(cuid())
     createdAt   DateTime @default(now())
@@ -125,7 +125,7 @@ model Drawing {
     DrawingComponent DrawingComponent[]
 }
 
-// Drawing component (temp.)
+/// Drawing component (temp.)
 model DrawingComponent {
     id        String   @id @default(cuid())
     createdAt DateTime @default(now())
