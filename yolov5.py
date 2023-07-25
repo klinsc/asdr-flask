@@ -8,18 +8,11 @@ class YoloV5:
                                     path='assets/best.pt')  # default
 
     # Function to predict the bounding boxes
-    def predict(self, imgs=None,output_type='csv'):
+    def predict(self, image_name=None):
         # Inference
-        results = self.model(imgs)
+        results = self.model(f"{image_name}.jpg")
 
         # Results
         results.print()
 
-        # Results as JSON
-        if output_type == 'json':
-            results.pandas().xyxy[0].to_json('results.json', orient='records')
-            return 
-
-        # Results as CSV
-        results.pandas().xyxy[0].to_csv('results.csv', index=True)
-        return 
+        return results
