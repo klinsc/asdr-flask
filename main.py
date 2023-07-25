@@ -1,7 +1,8 @@
 from io import BytesIO
 import os
+import uuid
 from pdf2image import convert_from_bytes
-from flask import Flask, request, make_response
+from flask import Flask, after_this_request, request, make_response
 from flask_cors import CORS
 from yolov5 import YoloV5
 
@@ -35,9 +36,18 @@ def upload():
 
 
 @app.route('/predict', methods=['POST'])
-def predict():
+def predict():    
+    @after_this_request
+    def delete_results(response):
+        try:
+            os.remove(f"{image_name}.{out_type}")
+        except Exception as ex:
+            print(ex)
+        return response
+    
     # choose the output format from the request query string
     output = request.args.get('type')
+    out_type = 'csv' if output == 'csv' else 'json'
 
     try:
         # get the images from the request
@@ -45,34 +55,56 @@ def predict():
         # convert the images to a byte array
         byte_arr = (file.read())
 
+        # generate a random name for the image
+        image_name = str(uuid.uuid4())
+
         # save image to disk
-        with open('temp.jpg', 'wb') as f:
+        with open(f'{image_name}.jpg', 'wb') as f:
             f.write(byte_arr)
 
         # create a yolov5 object
         yolo = YoloV5()
 
         # predict the bounding boxes
-        results = yolo.predict('temp.jpg')
+        results = yolo.predict(f'{image_name}')
 
         # remove the image from disk
-        os.remove('temp.jpg')
+        os.remove(f'{image_name}.jpg')
 
         if output == 'json':
+            # Results as JSON
+            results.pandas().xyxy[0].to_json(
+                f'{image_name}.json', orient='records')
+
             # read the json file
-            with open('results.json', 'r') as f:
+            with open(f'{image_name}.json', 'r') as f:
                 jsonFile = f.read()
 
+                # create a response object
+                response =  make_response(jsonFile, 200, {'Content-Type': 'application/json'})
+
+                # remove the json file from disk
+                delete_results(response)
+
                 # return the json file to the client
-                return make_response(jsonFile, 200, {'Content-Type': 'application/json'})
+                return response
+
+        # Results as CSV
+        results.pandas().xyxy[0].to_csv(f'{image_name}.csv', index=True)
 
         # read the csv file
-        with open('results.csv', 'r') as f:
+        with open(f'{image_name}.csv', 'r') as f:
             csvFile = f.read()
 
-            # return the csv file to the client
-            return make_response(csvFile, 200, {'Content-Type': 'text/csv'})
+            # create a response object
+            response =  make_response(csvFile, 200, {'Content-Type': 'text/csv'})
 
+            # remove the csv file from disk
+            delete_results(response)
+
+            # return the csv file to the client
+            return response
+    
     except Exception as e:
         print(e)
 
