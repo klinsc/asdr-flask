@@ -40,7 +40,7 @@ def upload():
 
 
 @app.route('/predict', methods=['POST'])
-def predict():
+async def predict():
     @after_this_request
     def delete_results(response):
         try:
@@ -76,10 +76,33 @@ def predict():
         os.remove(f'{image_name}.jpg')
 
         if output == 'json':
-            # Results as JSON
-            results.pandas().xyxy[0].to_json(
-                f'{image_name}.json', orient='records')
+            prisma = Prisma()
+            await prisma.connect()
 
+            newResults = results.pandas().xyxy[0].copy()
+
+            # for each bounding box find its color in database
+            for bounding_box in newResults.itertuples():
+                # queries the component table on the database
+                component = await prisma.component.find_unique(
+                    where={
+                        "name": bounding_box.name
+                    }
+                )
+                if (component == None):
+                    continue
+
+                # add the color to the dataframe
+                newResults.at[bounding_box.Index, 'color'] = component.color
+
+
+            # close the database connection
+            await prisma.disconnect()
+
+            # Results as JSON
+            newResults.to_json(
+                f'{image_name}.json', orient='records')
+            
             # read the json file
             with open(f'{image_name}.json', 'r') as f:
                 jsonFile = f.read()
@@ -166,7 +189,7 @@ async def validate_bays(drawing_components_df, drawing_type="Main&Transfer", tes
             # convert to dataframe
             drawing_components_df = pd.DataFrame(drawing_components_list)
 
-        print("drawing_components_df:",drawing_components_df)
+        print("drawing_components_df:", drawing_components_df)
         drawing_components_df_backup = drawing_components_df.copy()
 
         # query the database on drawing type table
@@ -241,7 +264,7 @@ async def validate_bays(drawing_components_df, drawing_type="Main&Transfer", tes
         #                                               != 0].reset_index(drop=True)
 
         # # 99) conclue to the number of total 115_incoming, 115_transformer, 115_tie
-        print("line_types_df:",line_types_df)
+        print("line_types_df:", line_types_df)
 
     except Exception as e:
         print(e)
@@ -251,7 +274,7 @@ async def validate_bays(drawing_components_df, drawing_type="Main&Transfer", tes
     finally:
         await prisma.disconnect()
 
-        print ("Finish validating bays")
+        print("Finish validating bays")
         return line_types_df, drawing_components_df
 
 
@@ -289,7 +312,7 @@ async def validate_components(drawing_components_df, line_types_df, drawing_type
                             if (remaining_components_df.loc[remaining_components_df["name"] == mandatory, "count"].any()):
                                 # deduct the mandatory component count from the drawing_components_df
                                 remaining_components_df.loc[remaining_components_df["name"]
-                                                          == mandatory, "count"] -= 1
+                                                            == mandatory, "count"] -= 1
                                 # deduct the mandatory component count
                                 mandatory_count -= 1
 
@@ -323,7 +346,7 @@ async def validate_components(drawing_components_df, line_types_df, drawing_type
                                 if (remaining_components_df.loc[remaining_components_df["name"] == variant, "count"].any()):
                                     # deduct the variant count from the drawing_components_df
                                     remaining_components_df.loc[remaining_components_df["name"]
-                                                              == variant, "count"] -= 1
+                                                                == variant, "count"] -= 1
                                     # deduct the variant count from the mandatory_component_variants_total
                                     mandatory_component_variants_total -= 1
 
@@ -351,7 +374,7 @@ async def validate_components(drawing_components_df, line_types_df, drawing_type
 
 @app.route('/test-predict', methods=['POST'])
 def test_predict():
-    test = True if(request.args.get('test') == 'true') else False
+    test = True if (request.args.get('test') == 'true') else False
 
     try:
         # get the images from the request
@@ -382,10 +405,12 @@ def test_predict():
         df = df.groupby('name').size().reset_index(name='count')
 
         # validate the drawing bays
-        line_types_df, drawing_components_df = asyncio.run(validate_bays(df,test=test))
+        line_types_df, drawing_components_df = asyncio.run(
+            validate_bays(df, test=test))
 
         # validate the components
-        missing_components_df, remaining_components_df = asyncio.run(validate_components(drawing_components_df, line_types_df))
+        missing_components_df, remaining_components_df = asyncio.run(
+            validate_components(drawing_components_df, line_types_df))
 
         # add column key to drawing_components_df with value of row index
         drawing_components_df["key"] = drawing_components_df.index
@@ -395,9 +420,12 @@ def test_predict():
 
         # return all dfs to the client in json format
         line_types_json = line_types_df.to_json(orient="records")
-        drawing_components_json = drawing_components_df.to_json(orient="records")
-        missing_components_json = missing_components_df.to_json(orient="records")
-        remaining_components_json = remaining_components_df.to_json(orient="records")
+        drawing_components_json = drawing_components_df.to_json(
+            orient="records")
+        missing_components_json = missing_components_df.to_json(
+            orient="records")
+        remaining_components_json = remaining_components_df.to_json(
+            orient="records")
 
         response = make_response(
             {
