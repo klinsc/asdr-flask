@@ -95,14 +95,17 @@ async def predict():
                 # add the color to the dataframe
                 newResults.at[bounding_box.Index, 'color'] = component.color
 
-
             # close the database connection
             await prisma.disconnect()
+
+            # for each bounding box, generate a small uuid for each
+            newResults['id'] = newResults.apply(
+                lambda row: str(uuid.uuid4())[:8], axis=1)
 
             # Results as JSON
             newResults.to_json(
                 f'{image_name}.json', orient='records')
-            
+
             # read the json file
             with open(f'{image_name}.json', 'r') as f:
                 jsonFile = f.read()
