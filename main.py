@@ -15,6 +15,16 @@ app = Flask(__name__)
 cors = CORS(app, resources={r"/*": {"origins": "*"}})
 
 
+@app.route('/')
+def index():
+    return 'asdr-flask-server'
+
+
+@app.route('/health')
+def health():
+    return 'OK'
+
+
 @app.route('/upload', methods=['POST'])
 def upload():
     try:
@@ -446,4 +456,4 @@ def test_predict():
 
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=True, host='0.0.0.0')
