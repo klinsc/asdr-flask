@@ -14,6 +14,9 @@ RUN pip install -r requirements.txt
 # copy the content of the local src directory to the working directory
 COPY . .
 
+# run prisma generate for python
+RUN prisma generate
+
 # command to run on container start
 CMD [ "python", "./main.py" ]
 
