@@ -5,7 +5,7 @@ class YoloV5:
     def __init__(self):
         # Load the model
         self.model = torch.hub.load('ultralytics/yolov5', 'custom',
-                                    path='assets/best.pt')  # default
+                                    path='assets/best-rpod6-2000.pt')  # default
 
     # Function to predict the bounding boxes
     def predict(self, image_name=None):
