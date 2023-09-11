@@ -187,6 +187,9 @@ async def validate_bays(drawing_components_df, drawing_type="Main&Transfer", tes
             # create a list of components
             drawing_components_list = []
             for drawing_component in drawing_components:
+                if drawing_component.component == None:
+                    continue
+
                 drawing_components_list.append(
                     {
                         "index": drawing_component.component.index,
