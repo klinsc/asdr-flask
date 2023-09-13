@@ -495,4 +495,14 @@ def test_predict():
 
 
 if __name__ == "__main__":
+    # check if prisma is running
+    try:
+        prisma = Prisma()
+        asyncio.run(prisma.connect())
+        asyncio.run(prisma.disconnect())
+    except Exception as e:
+        print(e)
+        print("Prisma is not running")
+        exit()
+
     app.run(debug=False, host="0.0.0.0")
