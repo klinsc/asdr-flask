@@ -1,2 +1,19 @@
 # asdr-flask
- 
+
+**How to create conda environment for asdr-flask**
+
+## 1) First, we create a conda environment with python 3.10.12
+
+`conda create -n asdr python=3.10.12`
+
+## 2) Then, we activate the environment
+
+`conda activate asdr`
+
+## 3) Next, we install all CUDA related packages by official pytorch https://pytorch.org/get-started/previous-versions/
+
+`conda install pytorch==1.12.1 -c pytorch`
+
+## 4) Then, we install all other packages from YOLOv5 official requirements.txt
+
+`pip install -r requirements.txt`
