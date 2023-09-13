@@ -2,6 +2,8 @@
 
 **How to create conda environment for asdr-flask**
 
+**If the disk space is low, use `conda clean -a`**
+
 ## 1) First, we create a conda environment with python 3.10.12
 
 `conda create -n asdr python=3.10.12`
