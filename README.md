@@ -18,6 +18,8 @@
 
 ## 4) Then, we install all other packages from YOLOv5 official requirements.txt
 
+`conda install poppler`
+
 `pip install pandas flask flask_cors opencv-python pdf2image prisma requests`
 
 `pip install flask[async]`
