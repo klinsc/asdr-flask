@@ -16,4 +16,16 @@
 
 ## 4) Then, we install all other packages from YOLOv5 official requirements.txt
 
-`pip install -r requirements.txt`
+`pip install pandas flask flask_cors opencv-python pdf2image prisma requests`
+
+`pip install flask[async]`
+
+`pip install ultralytics --no-cache-dir`
+
+## 5) Generate prima client
+
+`prisma generate`
+
+## 6) Run the server
+
+`python asdr.py`
