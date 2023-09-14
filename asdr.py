@@ -12,6 +12,8 @@ from drawing_tree import drawing_tree
 from prisma import Prisma  # type: ignore
 from yolov5 import YoloV5
 
+os.environ["PRISMA_HOME_DIR "] = "/var/tmp"
+
 # create a flask server to receive the pdf file and convert it to images and send it back to the client
 app = Flask(__name__)
 cors = CORS(app, resources={r"/*": {"origins": "*"}})
