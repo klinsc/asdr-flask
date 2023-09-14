@@ -13,6 +13,7 @@ from prisma import Prisma  # type: ignore
 from yolov5 import YoloV5
 
 os.environ["PRISMA_HOME_DIR "] = "/var/tmp"
+os.environ["PRISMA_BINARY_CACHE_DIR"] = "/var/tmp"
 
 # create a flask server to receive the pdf file and convert it to images and send it back to the client
 app = Flask(__name__)
