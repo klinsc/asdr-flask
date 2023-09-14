@@ -13,7 +13,7 @@ class YoloV5:
     # Function to predict the bounding boxes
     def predict(self, image_name=None):
         # Inference
-        results = self.model(f"{image_name}.jpg")
+        results = self.model(f"{image_name}.jpg", size=1280)
 
         # Results
         results.print()
