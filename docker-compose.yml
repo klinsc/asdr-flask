@@ -1,13 +1,31 @@
-version: '3'
+version: '3.9'
 services:
-  ml-server:
-    # docker build -t asdr-flask .
+  ml:
+    stdin_open: true
+    tty: true
+    container_name: ml
+    hostname: ml
+    restart: unless-stopped
     build: .
+    depends_on:
+      - db
     env_file:
       - .env
-    # ports:
-    #   - "5000:5000"
-  
+    volumes:
+      - ./models:/asdr-flask/models:rw
+
+  db:
+    image: postgres:14
+    container_name: postgres
+    hostname: db
+    restart: unless-stopped
+    ports:
+      - "5666:5432"
+    environment:
+      - POSTGRES_HOST_AUTH_METHOD=trust
+    volumes:
+      - ${POSTGRES_DATA_DIR:-./postgres-data}:/var/lib/postgresql/data
+
   nginx:
     image: nginx:latest
     ports:
