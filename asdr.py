@@ -26,12 +26,12 @@ def index():
 
 
 @app.route("/health")
-def health():
+async def health():
     # check if the server is connected to the database
     try:
         prisma = Prisma()
-        asyncio.run(prisma.connect())
-        asyncio.run(prisma.disconnect())
+        await prisma.connect()
+        await prisma.disconnect()
     except Exception as e:
         print(e)
         return make_response("Internal Server Error", 500)
