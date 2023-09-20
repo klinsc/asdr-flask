@@ -71,3 +71,9 @@ WantedBy=multi-user.target`
 `nano ~/.bashrc`
 add `export LD_LIBRARY_PATH=/usr/lib/wsl/lib:$LD_LIBRARY_PATH`
 `source ~/.bashrc`
+
+Permission denied while connecting to upstream nginx flask
+`https://stackoverflow.com/questions/70111791/nginx-13-permission-denied-while-connecting-to-upstream`
+
+Install poppler
+`https://askubuntu.com/questions/1240998/how-to-install-poppler-0-73-on-ubuntu-20-04-any-change-since-18-04`

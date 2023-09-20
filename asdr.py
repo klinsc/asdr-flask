@@ -27,6 +27,15 @@ def index():
 
 @app.route("/health")
 def health():
+    # check if the server is connected to the database
+    try:
+        prisma = Prisma()
+        asyncio.run(prisma.connect())
+        asyncio.run(prisma.disconnect())
+    except Exception as e:
+        print(e)
+        return make_response("Internal Server Error", 500)
+
     return "OK"
 
 
@@ -99,7 +108,7 @@ async def predict():
             # for each bounding box find its color in database
             for bounding_box in newResults.itertuples():
                 # queries the component table on the database
-                component = await prisma.component.find_unique(
+                component = await prisma.component.find_first(
                     where={"name": bounding_box.name}
                 )
                 if component == None:
@@ -498,14 +507,4 @@ def test_predict():
 
 
 if __name__ == "__main__":
-    # # check if prisma is running
-    # try:
-    #     prisma = Prisma()
-    #     asyncio.run(prisma.connect())
-    #     asyncio.run(prisma.disconnect())
-    # except Exception as e:
-    #     print(e)
-    #     print("Prisma is not running")
-    #     exit()
-
     app.run(debug=False, host="0.0.0.0")
