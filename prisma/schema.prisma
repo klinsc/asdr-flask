@@ -1,135 +1,170 @@
 generator client {
-    provider             = "prisma-client-py"
-    recursive_type_depth = "5"
+  provider             = "prisma-client-py"
+  recursive_type_depth = "5"
 }
 
 datasource db {
-    provider = "postgresql"
-    url      = env("DATABASE_URL")
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 model Example {
-    id        String   @id @default(cuid())
-    createdAt DateTime @default(now())
-    updatedAt DateTime @updatedAt
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model Account {
-    id                String  @id @default(cuid())
-    userId            String
-    type              String
-    provider          String
-    providerAccountId String
-    refresh_token     String?
-    access_token      String?
-    expires_at        Int?
-    token_type        String?
-    scope             String?
-    id_token          String?
-    session_state     String?
-    user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-    @@unique([provider, providerAccountId])
+  @@unique([provider, providerAccountId])
 }
 
 model Session {
-    id           String   @id @default(cuid())
-    sessionToken String   @unique
-    userId       String
-    expires      DateTime
-    user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model User {
-    id            String    @id @default(cuid())
-    name          String?
-    email         String?   @unique
-    emailVerified DateTime?
-    image         String?
-    accounts      Account[]
-    sessions      Session[]
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+  accounts      Account[]
+  sessions      Session[]
 }
 
 model VerificationToken {
-    identifier String
-    token      String   @unique
-    expires    DateTime
+  identifier String
+  token      String   @unique
+  expires    DateTime
 
-    @@unique([identifier, token])
+  @@unique([identifier, token])
 }
 
 /// Machine learning server
 model MLServer {
-    id          String   @id @default(cuid())
-    createdAt   DateTime @default(now())
-    updatedAt   DateTime @updatedAt
-    name        String
-    description String?
-    url         String
-    selected    Boolean  @default(false)
+  id          String   @id @default(cuid())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  name        String
+  description String?
+  url         String
+  selected    Boolean  @default(false)
 }
 
 /// Drawing type
 model DrawingType {
-    id          String     @id @default(cuid())
-    createdAt   DateTime   @default(now())
-    updatedAt   DateTime   @updatedAt
-    name        String     @unique
-    description String?
-    Drawing     Drawing[]
-    LineType    LineType[]
+  id          String     @id @default(cuid())
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  name        String     @unique
+  description String?
+  Drawing     Drawing[]
+  LineType    LineType[]
 }
 
 /// Drawing component 115kv
 model Component {
-    id               String             @id @default(cuid())
-    createdAt        DateTime           @default(now())
-    updatedAt        DateTime           @updatedAt
-    index            Int                @unique
-    name             String             @unique
-    description      String?
-    color            String
-    part             Part
-    DrawingComponent DrawingComponent[]
+  id                 String              @id @default(cuid())
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  index              Int
+  name               String
+  description        String?
+  color              String
+  partId             String
+  componentVersionId String
+  ComponentVersion   ComponentVersion    @relation(fields: [componentVersionId], references: [id])
+  Part               Part                @relation(fields: [partId], references: [id])
+  DrawingComponent   DrawingComponent[]
+  LineTypeComponent  LineTypeComponent[]
 }
 
 /// Line type
 model LineType {
-    id            String      @id @default(cuid())
-    createdAt     DateTime    @default(now())
-    updatedAt     DateTime    @updatedAt
-    name          String
-    description   String?
-    drawingTypeId String
-    drawingType   DrawingType @relation(fields: [drawingTypeId], references: [id])
+  id                String              @id @default(cuid())
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  name              String
+  description       String?
+  drawingTypeId     String
+  drawingType       DrawingType         @relation(fields: [drawingTypeId], references: [id])
+  LineTypeComponent LineTypeComponent[]
 }
 
 /// Drawing (temp.)
 model Drawing {
-    id               String             @id @default(cuid())
-    createdAt        DateTime           @default(now())
-    updatedAt        DateTime           @updatedAt
-    name             String             @unique
-    description      String?
-    drawingTypeId    String
-    drawingType      DrawingType        @relation(fields: [drawingTypeId], references: [id])
-    DrawingComponent DrawingComponent[]
+  id               String             @id @default(cuid())
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  name             String             @unique
+  description      String?
+  drawingTypeId    String
+  drawingType      DrawingType        @relation(fields: [drawingTypeId], references: [id])
+  DrawingComponent DrawingComponent[]
 }
 
 /// Drawing component (temp.)
 model DrawingComponent {
-    id          String    @id @default(cuid())
-    createdAt   DateTime  @default(now())
-    updatedAt   DateTime  @updatedAt
-    componentId String
-    drawingId   String
-    count       Int
-    component   Component @relation(fields: [componentId], references: [id])
-    drawing     Drawing   @relation(fields: [drawingId], references: [id])
+  id          String    @id @default(cuid())
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  componentId String
+  drawingId   String
+  count       Int
+  component   Component @relation(fields: [componentId], references: [id])
+  drawing     Drawing   @relation(fields: [drawingId], references: [id])
 }
 
-enum Part {
-    kv115
-    kv22
-    universal
+model ComponentVersion {
+  id          String      @id
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime
+  name        String
+  description String?
+  emoji       String
+  selected    Boolean     @default(false)
+  Component   Component[]
+}
+
+model LineTypeComponent {
+  id            String        @id
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime
+  lineTypeId    String
+  componentId   String
+  componentType ComponentType @default(mandatory)
+  count         Int           @default(1)
+  Component     Component     @relation(fields: [componentId], references: [id])
+  LineType      LineType      @relation(fields: [lineTypeId], references: [id])
+}
+
+model Part {
+  id        String      @id
+  createdAt DateTime    @default(now())
+  updatedAt DateTime
+  name      String
+  Component Component[]
+}
+
+enum ComponentType {
+  mandatory
+  optional
 }

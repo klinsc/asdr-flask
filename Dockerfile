@@ -1,12 +1,21 @@
-# create a docker image for the application of flask with python3.11.4
+# create a docker image for the application of flask with python3.10.12
 
-FROM python:3.11.4
+FROM python:3.10.12
 
 # set the working directory in the container
-WORKDIR /asdr-flask
+WORKDIR /app
 
 # copy the dependencies file to the working directory
 COPY requirements.txt .
+
+# # upgrade apt-get
+# RUN apt-get update && apt-get upgrade -y
+RUN apt-get update && apt install libgl1-mesa-glx -y
+
+# install poppler
+RUN apt-get update && apt-get install poppler-utils -y
+
+RUN apt update && apt install -y libsm6 libxext6 ffmpeg libfontconfig1 libxrender1
 
 # install dependencies
 RUN pip install -r requirements.txt
@@ -18,34 +27,11 @@ COPY . .
 RUN prisma generate
 
 # command to run on container start
-CMD [ "python", "./main.py" ]
+CMD ["uwsgi", "--socket", "0.0.0.0:5000", "--protocol=http", "-w", "wsgi:app", "--master", "--processes", "4", "--threads", "2"]
 
-# build the docker image
+# build the docker image, with .env file, and name it asdr-flask
 # docker build -t asdr-flask .
 
+# run the docker image, expose port 5000 as 5666, with name asdr-flask, and run in background
+# docker run -d -p 5666:5000 --name asdr-flask asdr-flask
 
-# creat worker from ubuntu and do the following:
-####################
-# 1) Install Poppler
-# wget https://poppler.freedesktop.org/poppler-21.09.0.tar.xz
-# tar -xvf poppler-21.09.0.tar.xz
-# sudo apt-get install libnss3 libnss3-dev
-# sudo apt-get install libcairo2-dev libjpeg-dev libgif-dev
-# sudo apt-get install cmake libblkid-dev e2fslibs-dev libboost-all-dev libaudit-dev
-# cd poppler-21.09.0/
-# mkdir build
-# cd build/
-# cmake  -DCMAKE_BUILD_TYPE=Release   \
-#        -DCMAKE_INSTALL_PREFIX=/usr  \
-#        -DTESTDATADIR=$PWD/testfiles \
-#        -DENABLE_UNSTABLE_API_ABI_HEADERS=ON \
-#        ..
-# make 
-# sudo make install
-####################
-# 1.1) OR by official documenation
-# conda install poppler
-# apt-get install poppler-utils
-####################
-# 2) Fix "ImportError: libGL.so.1: cannot open shared object file: No such file or directory"
-# RUN apt-get update && apt-get install ffmpeg libsm6 libxext6  -y
