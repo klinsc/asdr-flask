@@ -43,9 +43,12 @@ model Session {
 model User {
   id            String    @id @default(cuid())
   name          String?
-  email         String?   @unique
+  email         String    @unique
   emailVerified DateTime?
   image         String?
+  hash          String
+  salt          String
+  role          Role      @default(USER)
   accounts      Account[]
   sessions      Session[]
 }
@@ -167,4 +170,9 @@ model Part {
 enum ComponentType {
   mandatory
   optional
+}
+
+enum Role {
+  USER
+  ADMIN
 }
