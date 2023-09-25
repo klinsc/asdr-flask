@@ -34,7 +34,7 @@ async def health():
         await prisma.disconnect()
     except Exception as e:
         print(e)
-        return make_response("Internal Server Error", 500)
+        return make_response(f"Internal Server Error: {e}", 500)
 
     return "OK"
 
