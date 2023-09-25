@@ -7,7 +7,7 @@ class YoloV5:
         self.model = torch.hub.load(
             "ultralytics/yolov5",
             "custom",
-            path="./models/72bfd85d53b140938c8058c8fbaa362c.pt",
+            path="./models/best_dc4c535796dc43b88f23fcc811b17a4c.pt",
         )  # default
 
     # Function to predict the bounding boxes
