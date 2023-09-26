@@ -1,4 +1,5 @@
 import asyncio
+import json
 import os
 import uuid
 from io import BytesIO
@@ -42,7 +43,6 @@ async def health():
 @app.route("/upload", methods=["POST"])
 def upload():
     try:
-        print(request)
         # get the pdf file from the request
         file = request.files["files[]"]
         # convert the pdf file to images
@@ -163,6 +163,40 @@ async def predict():
         print(e)
 
         return make_response("Internal Server Error", 500)
+
+
+async def handle_json_result(raw_json_result):
+    try:
+        # parse the json result
+        parsed_json_result = json.loads(raw_json_result)
+
+        # gives color for each bounding box
+        prisma = Prisma()
+        await prisma.connect()
+
+        # use enumerate to speed up the loop
+        for index, bounding_box in enumerate(parsed_json_result):
+            # queries the component table on the database
+            component = await prisma.component.find_first(
+                where={"name": bounding_box["name"]}
+            )
+            if component == None:
+                continue
+
+            # add the color to the dataframe
+            parsed_json_result[index]["color"] = component.color
+
+        # close the database connection
+        await prisma.disconnect()
+
+        # convert the json result to string
+        string_json_result = json.dumps(parsed_json_result)
+
+        return string_json_result
+
+    except Exception as e:
+        print(e)
+        return None
 
 
 async def validate_bays(drawing_components_df, drawing_type="Main&Transfer", test=True):
@@ -447,20 +481,31 @@ def test_predict():
         byte_arr = file.read()
 
         # generate a random name for the image
-        image_name = str(uuid.uuid4())
+        image_name = f"{str(uuid.uuid4())}.jpg"
+
+        # check if the images folder exists
+        if not os.path.exists("./images"):
+            os.makedirs("./images")
+
+        # create the image path
+        image_path = f"./images/{image_name}"
 
         # save image to disk
-        with open(f"{image_name}.jpg", "wb") as f:
+        with open(image_path, "wb") as f:
             f.write(byte_arr)
 
         # create a yolov5 object
         yolo = YoloV5()
 
         # predict the bounding boxes
-        results = yolo.predict(f"{image_name}")
+        results = yolo.predict(image_path)
 
         # remove the image from disk
-        os.remove(f"{image_name}.jpg")
+        os.remove(image_path)
+
+        # get json result
+        raw_json_result = results.pandas().xyxy[0].to_json(orient="records")
+        string_json_result = handle_json_result(raw_json_result)
 
         # create a df from the results
         df = results.pandas().xyxy[0]
@@ -488,12 +533,16 @@ def test_predict():
         missing_components_json = missing_components_df.to_json(orient="records")
         remaining_components_json = remaining_components_df.to_json(orient="records")
 
+        # wait for the json result
+        string_json_result = asyncio.run(string_json_result)
+
         response = make_response(
             {
                 "line_types": line_types_json,
                 "drawing_components": drawing_components_json,
                 "missing_components": missing_components_json,
                 "remaining_components": remaining_components_json,
+                "json_result": string_json_result,
             },
             200,
             {"Content-Type": "application/json"},
