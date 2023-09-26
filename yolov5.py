@@ -14,22 +14,24 @@ class YoloV5:
                 "ultralytics/yolov5",
                 "custom",
                 path=f"./models/{self.file_name}",
+                trust_repo=True,
             )
 
-            # self.error = False
-            # self.error_message = None
-            self.error = {"error": False, "error_message": None}
         # catch exception if model not found
         except Exception as e:
             print(e)
-            self.error = {"error": True, "error_message": "Error loading model"}
+            raise Exception(e)
 
     # Function to predict the bounding boxes
-    def predict(self, image_name=None):
-        # Inference
-        results = self.model(f"{image_name}.jpg", size=1280)
+    def predict(self, image_path=None, size=1280):
+        try:
+            assert image_path is not None, "An image not provided"
 
-        # Results
-        results.print()
+            # Inference
+            results = self.model(image_path, size=size)
+            return results
 
-        return results
+        # catch exception if image not found
+        except Exception as e:
+            print(e)
+            raise Exception(e)
