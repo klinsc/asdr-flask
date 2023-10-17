@@ -247,6 +247,7 @@ async def validate_bays(drawing_components_df, drawing_type="Main&Transfer", tes
                         "index": drawing_component.component.index,
                         "name": drawing_component.component.name,
                         "count": drawing_component.count,
+                        "id": drawing_component.component.id,
                     }
                 )
             # convert to dataframe
@@ -348,7 +349,7 @@ async def validate_bays(drawing_components_df, drawing_type="Main&Transfer", tes
         #                                               != 0].reset_index(drop=True)
 
         # # 99) conclue to the number of total 115_incoming, 115_transformer, 115_tie
-        print("line_types_df:", line_types_df)
+        # print("line_types_df:", line_types_df)
 
         await prisma.disconnect()
 
@@ -368,7 +369,9 @@ async def validate_components(
         print("Start validating components")
 
         drawing_truth = drawing_tree[drawing_type]
-        missing_components_df = pd.DataFrame(columns=["name", "line_type", "count"])
+        missing_components_df = pd.DataFrame(
+            columns=["name", "line_type", "count", "id"]
+        )
         remaining_components_df = drawing_components_df.copy()
 
         # for each line type in 115 of line_types_df
@@ -412,6 +415,7 @@ async def validate_components(
                                         "name": mandatory,
                                         "line_type": line_type_name,
                                         "count": 1,
+                                        "id": "",
                                     },
                                     ignore_index=True,
                                 )  # type: ignore
@@ -476,6 +480,36 @@ async def validate_components(
         return None, None
 
 
+async def getIdComponents(drawing_components_df):
+    try:
+        print("Start getting id components")
+
+        # database:
+        prisma = Prisma()
+        await prisma.connect()
+
+        # queries the component table on the database
+        components = await prisma.component.find_many()
+        if len(components) == 0:
+            raise Exception("Component not found")
+
+        for index, row in drawing_components_df.iterrows():
+            for component in components:
+                if row["name"] == component.name:
+                    drawing_components_df.loc[index, "id"] = component.id
+                    break
+
+        # close the database connection
+        await prisma.disconnect()
+        print("Finish getting id components")
+        return drawing_components_df
+
+    except Exception as e:
+        print(e)
+
+        return drawing_components_df
+
+
 @app.route("/test-predict", methods=["POST"])
 def test_predict():
     test = True if (request.args.get("test") == "true") else False
@@ -532,6 +566,9 @@ def test_predict():
         line_types_df["key"] = line_types_df.index
         missing_components_df["key"] = missing_components_df.index
         remaining_components_df["key"] = remaining_components_df.index
+
+        # add column id to drawing_components_df with value of id from database
+        drawing_components_df = asyncio.run(getIdComponents(drawing_components_df))
 
         # return all dfs to the client in json format
         line_types_json = line_types_df.to_json(orient="records")
