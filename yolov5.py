@@ -17,6 +17,10 @@ class YoloV5:
                 trust_repo=True,
             )
 
+            # # Config IoU threshold
+            # self.model.conf = 0.4
+            # self.model.iou = 0.5
+
         # catch exception if model not found
         except Exception as e:
             print(e)

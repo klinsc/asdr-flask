@@ -205,279 +205,138 @@ async def handle_json_result(raw_json_result):
         return None
 
 
-async def validate_bays(drawing_components_df, drawing_type="Main&Transfer", test=True):
-    """validate the drawing components
-    Args:
-        drawing_components_df (pd.DataFrame): dataframe of drawing components with columns: name, count
-        drawing_type (str, optional): drawing type. Defaults to "Main&Transfer".
+async def validate_predicted_components(
+    predicted_components_df,
+):
+    # database:
+    prisma = Prisma()
+    await prisma.connect()
 
-    Returns:
-    """
     try:
-        print("Start validating bay")
+        # get all components from the database, where the ComponentVersion selected===True
+        componentversion = await prisma.componentversion.find_many(
+            where={"selected": True}
+        )
+        if len(componentversion) == 0:
+            raise Exception("Selected component version not found")
+        components = await prisma.component.find_many(
+            where={"componentVersionId": componentversion[0].id}
+        )
+        if len(components) == 0:
+            raise Exception("Component not found")
 
+        # for each component in the predicted components, check if all component names exist in components
+        for row in predicted_components_df.iterrows():
+            if row["name"] not in components:
+                raise Exception("Some components not found")
+
+        return None
+
+    except Exception as e:
+        print(e)
+        return e
+
+    finally:
+        # close the database connection
+        await prisma.disconnect()
+
+
+async def diagnose_components(predicted_components_df, drawing_type_id):
+    try:
         # database:
         prisma = Prisma()
         await prisma.connect()
 
-        # args:
-        if test:
-            # queries the drawing table on the database
-            drawing = await prisma.drawing.find_unique(
-                where={"name": "e4a96435-bwa-BangWua1-sm-mt"}
-            )
-            if drawing == None:
-                raise Exception("Drawing not found")
-
-            # queries all classes in the database on component table
-            drawing_components = await prisma.drawingcomponent.find_many(
-                where={"drawingId": drawing.id}, include={"component": True}
-            )
-            if len(drawing_components) == 0:
-                raise Exception("Component not found")
-
-            # create a list of components
-            drawing_components_list = []
-            for drawing_component in drawing_components:
-                if drawing_component.component == None:
-                    continue
-
-                drawing_components_list.append(
-                    {
-                        "index": drawing_component.component.index,
-                        "name": drawing_component.component.name,
-                        "count": drawing_component.count,
-                        "id": drawing_component.component.id,
-                    }
-                )
-            # convert to dataframe
-            drawing_components_df = pd.DataFrame(drawing_components_list)
-
-        print("drawing_components_df:", drawing_components_df)
-        drawing_components_df_backup = drawing_components_df.copy()
-
         # query the database on drawing type table
-        drawingType = await prisma.drawingtype.find_first(where={"name": drawing_type})
+        drawingType = await prisma.drawingtype.find_first(where={"id": drawing_type_id})
         if drawingType == None:
             raise Exception("Drawing type not found")
+
         # queries all lines in the database on line type table
-        drawing_line_types = await prisma.linetype.find_many(
-            where={"drawingTypeId": drawingType.id}
+        line_types = await prisma.linetype.find_many(
+            where={"drawingTypeId": drawingType.id}, order={"index": "asc"}
         )
-        if len(drawing_line_types) == 0:
+        if len(line_types) == 0:
             raise Exception("Line not found")
 
-        # create a list of line types with count = 0
-        line_types = []
-        for line_type in drawing_line_types:
-            line_types.append({"name": line_type.name, "count": 0})
-        # convert to dataframe
-        line_types_df = pd.DataFrame(line_types)
+        # # queries all lineTypeComnents in the database on line type component table
+        # line_types_with_components = []
+        # for line_type in line_types:
+        #     components = await prisma.linetypecomponent.find_many(
+        #         where={"lineTypeId": line_type.id},
+        #         order={"index": "asc"},
+        #         include={"Component": True},
+        #     )
 
-        # !!! count lines in the drawing !!!
-        # 1) count "115_tie" in line_types (default is 1),
-        line_types_df.loc[line_types_df["name"] == "115_tie", "count"] += 1
-        # and for "115_vt_1p" or "115_cvt_1p" or "115_vt_3p" or "115_cvt_3p" which find first remove by 1 from drawing_components_list
-        for index, row in drawing_components_df.loc[
-            (drawing_components_df["name"] == "115_vt_1p")
-            | (drawing_components_df["name"] == "115_cvt_1p")
-            | (drawing_components_df["name"] == "115_vt_3p")
-            | (drawing_components_df["name"] == "115_cvt_3p")
-        ].iterrows():
-            if row["count"]:
-                drawing_components_df.loc[index, "count"] -= 1  # type: ignore
-                break
+        #     # define new type for components
+        #     new_components = []
+        #     for component in components:
+        #         new_component = {
+        #             ...component.Component.as_dict(),
+        #         }
+        #         new_components.append(new_component)
 
-        # 2) count "115_transformer" in line_types by counting "11522_tx_dyn1" or "11522_tx_ynyn0d1" in drawing_components_list
-        line_types_df.loc[
-            line_types_df["name"] == "115_transformer", "count"
-        ] += drawing_components_df.loc[
-            (drawing_components_df["name"] == "11522_tx_dyn1")
-            | (drawing_components_df["name"] == "11522_tx_ynyn0d1"),
-            "count",
-        ].sum()
+        #     line_types_with_component = {
+        #         "line_type": line_type,
+        #         "components": components,
+        #     }
 
-        # 3) count "115_incoming" in line_types by counting "115_vt_1p" or "115_cvt_1p" or "115_vt_3p" or "115_cvt_3p"
-        line_types_df.loc[
-            line_types_df["name"] == "115_incoming", "count"
-        ] += drawing_components_df.loc[
-            (drawing_components_df["name"] == "115_vt_1p")
-            | (drawing_components_df["name"] == "115_cvt_1p")
-            | (drawing_components_df["name"] == "115_vt_3p")
-            | (drawing_components_df["name"] == "115_cvt_3p"),
-            "count",
-        ].sum()
+        #     line_types_with_components.append(line_types_with_component)
 
-        # 4) count "22_tie" in line_types (default is 1)
-        line_types_df.loc[line_types_df["name"] == "22_tie", "count"] += 1
+        line_types = await prisma.linetype.find_many(
+            where={"drawingTypeId": drawingType.id},
+            order={"index": "asc"},
+            include={"LineTypeComponent": {"include": {"Component": True}}},
+        )
+        if len(line_types) == 0:
+            raise Exception("Line type not found")
 
-        # 5) count "22_capacitor" in line_types by counting "22_cap_bank" in drawing_components_list
-        line_types_df.loc[
-            line_types_df["name"] == "22_capacitor", "count"
-        ] += drawing_components_df.loc[
-            (drawing_components_df["name"] == "22_cap_bank"), "count"
-        ].sum()
+        for line_type in line_types:
+            print(line_type)
 
-        # 6) count "22_outgoing" in line_types by counting the "22_ds_la_out" or "22_ds_out" in drawing_components_list
-        line_types_df.loc[
-            line_types_df["name"] == "22_outgoing", "count"
-        ] += drawing_components_df.loc[
-            (drawing_components_df["name"] == "22_ds_la_out")
-            | (drawing_components_df["name"] == "22_ds_out"),
-            "count",
-        ].sum()
+        # define: remaining components
+        remaining_components_df = predicted_components_df.copy()
 
-        # 7) count "22_incoming" in line_types by counting the "v_m" in drawing_components_list
-        line_types_df.loc[
-            line_types_df["name"] == "22_incoming", "count"
-        ] += drawing_components_df.loc[
-            (drawing_components_df["name"] == "v_m"), "count"
-        ].sum()
+        # loop through line_types to diagnose the LineTypeComponent
+        for line_type in line_types:
+            # loop through the LineTypeComponents of the line type
+            for line_type_component in line_type.LineTypeComponent:  # type: ignore
+                # check if the component exists in the predicted components
+                if (
+                    line_type_component.Component.name  # type: ignore
+                    in predicted_components_df["name"].values
+                ):
+                    # for each count
+                    for i in range(line_type_component.count):
+                        # get the index of the component
+                        index = remaining_components_df[
+                            remaining_components_df["name"]
+                            == line_type_component.Component.name  # type: ignore
+                        ].index[0]
 
-        # 8) count "22_service" in line_types by counting the "22_ds" in drawing_components_list
-        line_types_df.loc[
-            line_types_df["name"] == "22_service", "count"
-        ] += drawing_components_df.loc[
-            (drawing_components_df["name"] == "22_ds"), "count"
-        ].sum()
+                        # check if the count of the component is greater than 0
+                        if remaining_components_df.loc[index, "count"] > 0:
+                            # decrease the count of the component by 1
+                            remaining_components_df.loc[index, "count"] -= 1
 
-        # 9) reset drawing_components_df to the original dataframe
-        drawing_components_df = drawing_components_df_backup.copy()
+                        elif remaining_components_df.loc[index, "count"] == 0:
+                            # remove the component from the dataframe
+                            # remaining_components_df.drop(index, inplace=True)
+                            continue
+                        else:
+                            raise Exception("Count of component is negative")
 
-        # # 10) remove the components with count = 0
-        # drawing_components_df = drawing_components_df[drawing_components_df["count"]
-        #                                               != 0].reset_index(drop=True)
+        print("Remaining components:")
+        print(remaining_components_df)
 
-        # # 99) conclue to the number of total 115_incoming, 115_transformer, 115_tie
-        # print("line_types_df:", line_types_df)
-
+        # close the database connection
         await prisma.disconnect()
 
-        print("Finish validating bays")
-        return line_types_df, drawing_components_df
+        return remaining_components_df
 
     except Exception as e:
         print(e)
-
-        return None, None
-
-
-async def validate_components(
-    drawing_components_df, line_types_df, drawing_type="Main&Transfer"
-):
-    try:
-        print("Start validating components")
-
-        drawing_truth = drawing_tree[drawing_type]
-        missing_components_df = pd.DataFrame(
-            columns=["name", "line_type", "count", "id"]
-        )
-        remaining_components_df = drawing_components_df.copy()
-
-        # for each line type in 115 of line_types_df
-        for index, row in line_types_df.iterrows():
-            # get the line type name
-            line_type_name = row["name"]
-            # get the line type count
-            line_type_count = row["count"]
-            # get mandatory components
-            mandatories = drawing_truth[line_type_name]["mandatory"]
-
-            for i in range(line_type_count):
-                # for each mandatory component in the line type
-                for mandatory in mandatories:
-                    # check if the mandatory component has no variant
-                    if isinstance(mandatories[mandatory], int):
-                        # get the mandatory component count
-                        mandatory_count = mandatories[mandatory]
-
-                        while mandatory_count > 0:
-                            founded = False
-
-                            # if there is a mandatory component in the drawing_components_df (not None)
-                            if remaining_components_df.loc[
-                                remaining_components_df["name"] == mandatory, "count"
-                            ].any():
-                                # deduct the mandatory component count from the drawing_components_df
-                                remaining_components_df.loc[
-                                    remaining_components_df["name"] == mandatory,
-                                    "count",
-                                ] -= 1
-                                # deduct the mandatory component count
-                                mandatory_count -= 1
-
-                                founded = True
-
-                            if founded == False:
-                                # add missing mandatory component to missing_components_df
-                                missing_components_df = missing_components_df._append(
-                                    {
-                                        "name": mandatory,
-                                        "line_type": line_type_name,
-                                        "count": 1,
-                                        "id": "",
-                                    },
-                                    ignore_index=True,
-                                )  # type: ignore
-
-                                # deduct the mandatory component count
-                                mandatory_count -= 1
-
-                    # means the mandatory component has variants
-                    else:
-                        # get the mandatory component variants
-                        mandatory_component_variants = mandatories[mandatory]
-
-                        # get its _total truth
-                        mandatory_component_variants_total = (
-                            mandatory_component_variants["_total"]
-                        )
-
-                        while mandatory_component_variants_total > 0:
-                            founded = False
-
-                            for variant in mandatory_component_variants:
-                                if variant == "_total":
-                                    continue
-
-                                # if there is a variant in the drawing_components_df (not None)
-                                if remaining_components_df.loc[
-                                    remaining_components_df["name"] == variant, "count"
-                                ].any():
-                                    # deduct the variant count from the drawing_components_df
-                                    remaining_components_df.loc[
-                                        remaining_components_df["name"] == variant,
-                                        "count",
-                                    ] -= 1
-                                    # deduct the variant count from the mandatory_component_variants_total
-                                    mandatory_component_variants_total -= 1
-
-                                    founded = True
-                                    break
-
-                            if founded == False:
-                                # add missing variant to missing_components_df
-                                missing_components_df = missing_components_df._append(
-                                    {
-                                        "name": mandatory,
-                                        "line_type": line_type_name,
-                                        "count": 1,
-                                    },
-                                    ignore_index=True,
-                                )  # type: ignore
-
-                                # deduct the variant count from the mandatory_component_variants_total
-                                mandatory_component_variants_total -= 1
-
-        print("Remaining drawing_components_df:", remaining_components_df)
-        print("Missing components:", missing_components_df)
-        print("Finish validating components")
-
-        return missing_components_df, remaining_components_df
-
-    except Exception as e:
-        print(e)
-        return None, None
+        return None
 
 
 async def getIdComponents(drawing_components_df):
@@ -512,9 +371,12 @@ async def getIdComponents(drawing_components_df):
 
 @app.route("/test-predict", methods=["POST"])
 def test_predict():
-    test = True if (request.args.get("test") == "true") else False
-
     try:
+        # get the drawing type id from the request
+        drawing_type_id = request.args.get("drawingTypeId")
+        if not drawing_type_id:
+            return make_response("Bad Request: drawingTypeId is required", 400)
+
         # get the images from the request
         file = request.files["files[]"]
         # convert the images to a byte array
@@ -545,20 +407,20 @@ def test_predict():
 
         # get json result
         raw_json_result = results.pandas().xyxy[0].to_json(orient="records")
-        string_json_result = handle_json_result(raw_json_result)
+        string_json_result = asyncio.run(handle_json_result(raw_json_result))
 
         # create a df from the results
         df = results.pandas().xyxy[0]
 
         # count the number of components in each class
-        df = df.groupby("name").size().reset_index(name="count")
+        predicted_components_df = df.groupby("name").size().reset_index(name="count")
 
-        # validate the drawing bays
-        line_types_df, drawing_components_df = asyncio.run(validate_bays(df, test=test))
+        # validate the predicted components
+        asyncio.run(validate_predicted_components(predicted_components_df))
 
-        # validate the components
-        missing_components_df, remaining_components_df = asyncio.run(
-            validate_components(drawing_components_df, line_types_df)
+        # diagnose the components
+         remaining_components_df = asyncio.run(
+            diagnose_components(predicted_components_df, drawing_type_id)
         )
 
         # add column key to drawing_components_df with value of row index
@@ -590,6 +452,9 @@ def test_predict():
             200,
             {"Content-Type": "application/json"},
         )
+
+        # # temp
+        # response = make_response(string_json_result, 200, {"Content-Type": "json"})
 
         return response
     except Exception as e:
