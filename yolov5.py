@@ -1,4 +1,5 @@
 import os
+import time
 
 import torch
 
@@ -28,6 +29,7 @@ class YoloV5:
 
     # Function to predict the bounding boxes
     def predict(self, image_path=None, size=1280):
+        start_time = time.time()
         try:
             assert image_path is not None, "An image not provided"
 
@@ -39,3 +41,6 @@ class YoloV5:
         except Exception as e:
             print(e)
             raise Exception(e)
+
+        finally:
+            print(f"---predict() {time.time() - start_time} seconds ---")

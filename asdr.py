@@ -1,6 +1,7 @@
 import asyncio
 import json
 import os
+import time
 import uuid
 from io import BytesIO
 
@@ -169,6 +170,7 @@ async def predict():
 
 
 async def handle_json_result(raw_json_result):
+    time_start = time.time()
     try:
         # parse the json result
         parsed_json_result = json.loads(raw_json_result)
@@ -204,10 +206,14 @@ async def handle_json_result(raw_json_result):
         print(e)
         return None
 
+    finally:
+        print(f"---handle_json_result() {time.time() - time_start} seconds ---")
 
 async def validate_predicted_components(
     predicted_components_df,
 ):
+    time_start = time.time()
+
     # database:
     prisma = Prisma()
     await prisma.connect()
@@ -239,9 +245,10 @@ async def validate_predicted_components(
     finally:
         # close the database connection
         await prisma.disconnect()
-
+        print(f"---validate_predicted_components() {time.time() - time_start} seconds ---")
 
 async def diagnose_components(predicted_components_df: pd.DataFrame, drawing_type_id:str):
+    time_start = time.time()
     try:
         # database:
         prisma = Prisma()
@@ -274,18 +281,21 @@ async def diagnose_components(predicted_components_df: pd.DataFrame, drawing_typ
         # define: remaining components
         remaining_components_df = predicted_components_df.copy()
 
+        # define: missing components
+        missing_components_df = predicted_components_df.copy().drop(
+            predicted_components_df.index
+        )
+
         # loop through line_types to diagnose the LineTypeComponent
         for line_type in line_types:
             for i in range(line_type.count):
                 # loop through the LineTypeComponents of the line type
-                for line_type_component in line_type.LineTypeComponent:  # type: ignore
-                    # check if the component exists in the predicted components
-                    if (
-                        line_type_component.Component.name  # type: ignore
-                        in remaining_components_df["name"].values
-                    ):
-                        # for each count
-                        for i in range(line_type_component.count):
+                for line_type_component in line_type.LineTypeComponent: # type: ignore
+                    for i in range(line_type_component.count):
+                        if(
+                            line_type_component.Component.name  # type: ignore
+                            in remaining_components_df["name"].values
+                        ):
                             # get the first index of the component in the remaining components
                             index = remaining_components_df[
                                 remaining_components_df["name"]
@@ -295,24 +305,45 @@ async def diagnose_components(predicted_components_df: pd.DataFrame, drawing_typ
                             # remove the component from the remaining components
                             remaining_components_df.drop(index, inplace=True)
 
+                        # add the component to the missing components
+                        else:
+                            # 'DataFrame' object has no attribute 'append'
+                            missing_components_df=pd.concat(
+                                [
+                                    missing_components_df,
+                                    pd.DataFrame(
+                                        {
+                                            "name": [
+                                                line_type_component.Component.name  # type: ignore
+                                            ],
+                                            "color": [
+                                                line_type_component.Component.color  # type: ignore
+                                            ],
+                                            "id": [
+                                                line_type_component.Component.id  # type: ignore
+                                            ],
+                                        }
+                                    ),
+                                ]
+                                ,ignore_index=True
+                            )
 
-        print("Remaining components:")
-        print(remaining_components_df)
 
         # close the database connection
         await prisma.disconnect()
 
-        return remaining_components_df
+        return remaining_components_df,missing_components_df
 
     except Exception as e:
         print(e)
-        return None
+        return None, None
 
+    finally:
+        print(f"---diagnose_components() {time.time() - time_start} seconds ---")
 
 async def getIdComponents(drawing_components_df:pd.DataFrame):
+    time_start = time.time()
     try:
-        print("Start getting id components")
-
         # database:
         prisma = Prisma()
         await prisma.connect()
@@ -330,7 +361,6 @@ async def getIdComponents(drawing_components_df:pd.DataFrame):
 
         # close the database connection
         await prisma.disconnect()
-        print("Finish getting id components")
         return drawing_components_df
 
     except Exception as e:
@@ -338,9 +368,12 @@ async def getIdComponents(drawing_components_df:pd.DataFrame):
 
         return drawing_components_df
 
+    finally:
+        print(f"---getIdComponents() {time.time() - time_start} seconds ---")
 
 @app.route("/test-predict", methods=["POST"])
 def test_predict():
+    start_time = time.time()
     try:
         # get the drawing type id from the request
         drawing_type_id = request.args.get("drawingTypeId")
@@ -393,8 +426,8 @@ def test_predict():
         asyncio.run(validate_predicted_components(predicted_components_df))
 
         # diagnose the components
-        remaining_components_df = asyncio.run(diagnose_components(predicted_components_df, drawing_type_id))
-        if(remaining_components_df is None):
+        remaining_components_df,missing_components_df = asyncio.run(diagnose_components(predicted_components_df, drawing_type_id))
+        if(remaining_components_df is None or missing_components_df is None):
             raise Exception("Error in diagnose components")
 
         # use components in the remaining components to remove the components in the predicted components
@@ -404,7 +437,8 @@ def test_predict():
         # # add column key to drawing_components_df with value of row index
         predicted_components_df["key"] = predicted_components_df.index
         # line_types_df["key"] = line_types_df.index
-        # missing_components_df["key"] = missing_components_df.index
+        if(missing_components_df is not None):
+            missing_components_df["key"] = missing_components_df.index
         if(remaining_components_df is not None):
             remaining_components_df["key"] = remaining_components_df.index
 
@@ -412,13 +446,14 @@ def test_predict():
         # # return all dfs to the client in json format
         # line_types_json = line_types_df.to_json(orient="records")
         predicted_components_json = predicted_components_df.to_json(orient="records")
-        # missing_components_json = missing_components_df.to_json(orient="records")
+        missing_components_json = missing_components_df.to_json(orient="records")
         remaining_components_json = remaining_components_df.to_json(orient="records")
 
 
         response = make_response(
             {
                 "predicted_components": predicted_components_json,
+                "missing_components": missing_components_json,
                 "remaining_components": remaining_components_json,
                 "json_result": string_json_result,
             },
@@ -434,7 +469,8 @@ def test_predict():
         print(e)
 
         return make_response("Internal Server Error", 500)
-
+    finally:
+        print(f"---test_predict() {time.time() - start_time} seconds ---")
 
 if __name__ == "__main__":
     app.run(debug=False, host="0.0.0.0")
