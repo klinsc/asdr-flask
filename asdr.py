@@ -241,7 +241,7 @@ async def validate_predicted_components(
         await prisma.disconnect()
 
 
-async def diagnose_components(predicted_components_df, drawing_type_id):
+async def diagnose_components(predicted_components_df: pd.DataFrame, drawing_type_id:str):
     try:
         # database:
         prisma = Prisma()
@@ -259,30 +259,7 @@ async def diagnose_components(predicted_components_df, drawing_type_id):
         if len(line_types) == 0:
             raise Exception("Line not found")
 
-        # # queries all lineTypeComnents in the database on line type component table
-        # line_types_with_components = []
-        # for line_type in line_types:
-        #     components = await prisma.linetypecomponent.find_many(
-        #         where={"lineTypeId": line_type.id},
-        #         order={"index": "asc"},
-        #         include={"Component": True},
-        #     )
-
-        #     # define new type for components
-        #     new_components = []
-        #     for component in components:
-        #         new_component = {
-        #             ...component.Component.as_dict(),
-        #         }
-        #         new_components.append(new_component)
-
-        #     line_types_with_component = {
-        #         "line_type": line_type,
-        #         "components": components,
-        #     }
-
-        #     line_types_with_components.append(line_types_with_component)
-
+        # get all line types with their components
         line_types = await prisma.linetype.find_many(
             where={"drawingTypeId": drawingType.id},
             order={"index": "asc"},
@@ -299,32 +276,25 @@ async def diagnose_components(predicted_components_df, drawing_type_id):
 
         # loop through line_types to diagnose the LineTypeComponent
         for line_type in line_types:
-            # loop through the LineTypeComponents of the line type
-            for line_type_component in line_type.LineTypeComponent:  # type: ignore
-                # check if the component exists in the predicted components
-                if (
-                    line_type_component.Component.name  # type: ignore
-                    in predicted_components_df["name"].values
-                ):
-                    # for each count
-                    for i in range(line_type_component.count):
-                        # get the index of the component
-                        index = remaining_components_df[
-                            remaining_components_df["name"]
-                            == line_type_component.Component.name  # type: ignore
-                        ].index[0]
+            for i in range(line_type.count):
+                # loop through the LineTypeComponents of the line type
+                for line_type_component in line_type.LineTypeComponent:  # type: ignore
+                    # check if the component exists in the predicted components
+                    if (
+                        line_type_component.Component.name  # type: ignore
+                        in remaining_components_df["name"].values
+                    ):
+                        # for each count
+                        for i in range(line_type_component.count):
+                            # get the first index of the component in the remaining components
+                            index = remaining_components_df[
+                                remaining_components_df["name"]
+                                == line_type_component.Component.name  # type: ignore
+                            ].index[0]
 
-                        # check if the count of the component is greater than 0
-                        if remaining_components_df.loc[index, "count"] > 0:
-                            # decrease the count of the component by 1
-                            remaining_components_df.loc[index, "count"] -= 1
+                            # remove the component from the remaining components
+                            remaining_components_df.drop(index, inplace=True)
 
-                        elif remaining_components_df.loc[index, "count"] == 0:
-                            # remove the component from the dataframe
-                            # remaining_components_df.drop(index, inplace=True)
-                            continue
-                        else:
-                            raise Exception("Count of component is negative")
 
         print("Remaining components:")
         print(remaining_components_df)
@@ -339,7 +309,7 @@ async def diagnose_components(predicted_components_df, drawing_type_id):
         return None
 
 
-async def getIdComponents(drawing_components_df):
+async def getIdComponents(drawing_components_df:pd.DataFrame):
     try:
         print("Start getting id components")
 
@@ -355,7 +325,7 @@ async def getIdComponents(drawing_components_df):
         for index, row in drawing_components_df.iterrows():
             for component in components:
                 if row["name"] == component.name:
-                    drawing_components_df.loc[index, "id"] = component.id
+                    drawing_components_df.at[index, "id"] = component.id
                     break
 
         # close the database connection
@@ -410,42 +380,45 @@ def test_predict():
         string_json_result = asyncio.run(handle_json_result(raw_json_result))
 
         # create a df from the results
-        df = results.pandas().xyxy[0]
+        df:pd.DataFrame = results.pandas().xyxy[0]
 
-        # count the number of components in each class
-        predicted_components_df = df.groupby("name").size().reset_index(name="count")
+        # copy from df to predicted_components_df with index
+        predicted_components_df = df.copy(deep=True).reset_index()
+        print(predicted_components_df.tail())
+
+        # add column id to drawing_components_df with value of id from database
+        predicted_components_df = asyncio.run(getIdComponents(predicted_components_df))
 
         # validate the predicted components
         asyncio.run(validate_predicted_components(predicted_components_df))
 
         # diagnose the components
-         remaining_components_df = asyncio.run(
-            diagnose_components(predicted_components_df, drawing_type_id)
-        )
+        remaining_components_df = asyncio.run(diagnose_components(predicted_components_df, drawing_type_id))
+        if(remaining_components_df is None):
+            raise Exception("Error in diagnose components")
 
-        # add column key to drawing_components_df with value of row index
-        drawing_components_df["key"] = drawing_components_df.index
-        line_types_df["key"] = line_types_df.index
-        missing_components_df["key"] = missing_components_df.index
-        remaining_components_df["key"] = remaining_components_df.index
+        # use components in the remaining components to remove the components in the predicted components
+        for index, row in remaining_components_df.iterrows():
+            predicted_components_df.drop(index, inplace=True)
 
-        # add column id to drawing_components_df with value of id from database
-        drawing_components_df = asyncio.run(getIdComponents(drawing_components_df))
+        # # add column key to drawing_components_df with value of row index
+        predicted_components_df["key"] = predicted_components_df.index
+        # line_types_df["key"] = line_types_df.index
+        # missing_components_df["key"] = missing_components_df.index
+        if(remaining_components_df is not None):
+            remaining_components_df["key"] = remaining_components_df.index
 
-        # return all dfs to the client in json format
-        line_types_json = line_types_df.to_json(orient="records")
-        drawing_components_json = drawing_components_df.to_json(orient="records")
-        missing_components_json = missing_components_df.to_json(orient="records")
+    
+        # # return all dfs to the client in json format
+        # line_types_json = line_types_df.to_json(orient="records")
+        predicted_components_json = predicted_components_df.to_json(orient="records")
+        # missing_components_json = missing_components_df.to_json(orient="records")
         remaining_components_json = remaining_components_df.to_json(orient="records")
 
-        # wait for the json result
-        string_json_result = asyncio.run(string_json_result)
 
         response = make_response(
             {
-                "line_types": line_types_json,
-                "drawing_components": drawing_components_json,
-                "missing_components": missing_components_json,
+                "predicted_components": predicted_components_json,
                 "remaining_components": remaining_components_json,
                 "json_result": string_json_result,
             },
