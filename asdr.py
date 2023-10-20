@@ -64,47 +64,6 @@ def upload():
         return make_response("Internal Server Error", 500)
 
 
-async def handle_json_result(raw_json_result):
-    time_start = time.time()
-    try:
-        # parse the json result
-        parsed_json_result = json.loads(raw_json_result)
-
-        # gives color for each bounding box
-        prisma = Prisma()
-        await prisma.connect()
-
-        # use enumerate to speed up the loop
-        for index, bounding_box in enumerate(parsed_json_result):
-            # queries the component table on the database
-            component = await prisma.component.find_first(
-                where={"name": bounding_box["name"]}
-            )
-            if component == None:
-                continue
-
-            # add the color to the dataframe
-            parsed_json_result[index]["color"] = component.color
-
-            # add the id to the dataframe
-            parsed_json_result[index]["id"] = component.id
-
-        # close the database connection
-        await prisma.disconnect()
-
-        # convert the json result to string
-        string_json_result = json.dumps(parsed_json_result)
-
-        return string_json_result
-
-    except Exception as e:
-        print(e)
-        return None
-
-    finally:
-        print(f"---handle_json_result() {time.time() - time_start} seconds ---")
-
-
 async def diagnose_components(
     predicted_components_df: pd.DataFrame, drawing_type_id: str
 ):
