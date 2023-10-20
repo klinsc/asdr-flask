@@ -307,7 +307,6 @@ async def diagnose_components(predicted_components_df: pd.DataFrame, drawing_typ
 
                         # add the component to the missing components
                         else:
-                            # 'DataFrame' object has no attribute 'append'
                             missing_components_df=pd.concat(
                                 [
                                     missing_components_df,
@@ -321,6 +320,9 @@ async def diagnose_components(predicted_components_df: pd.DataFrame, drawing_typ
                                             ],
                                             "id": [
                                                 line_type_component.Component.id  # type: ignore
+                                            ],
+                                            "lineTypeName":[
+                                                line_type.name
                                             ],
                                         }
                                     ),
