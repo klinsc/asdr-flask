@@ -64,111 +64,6 @@ def upload():
         return make_response("Internal Server Error", 500)
 
 
-@app.route("/predict", methods=["POST"])
-async def predict():
-    @after_this_request
-    def delete_results(response):
-        try:
-            os.remove(f"{image_name}.{out_type}")
-        except Exception as ex:
-            print(ex)
-        return response
-
-    # choose the output format from the request query string
-    output = request.args.get("type")
-    out_type = "csv" if output == "csv" else "json"
-
-    try:
-        # get the images from the request
-        file = request.files["files[]"]
-        # convert the images to a byte array
-        byte_arr = file.read()
-
-        # generate a random name for the image
-        image_name = str(uuid.uuid4())
-
-        # save image to disk
-        with open(f"{image_name}.jpg", "wb") as f:
-            f.write(byte_arr)
-
-        # create a yolov5 object
-        yolo = YoloV5()
-
-        # predict the bounding boxes
-        results = yolo.predict(f"{image_name}")
-
-        # remove the image from disk
-        os.remove(f"{image_name}.jpg")
-
-        if output == "json":
-            prisma = Prisma()
-            await prisma.connect()
-
-            newResults = results.pandas().xyxy[0].copy()
-
-            # for each bounding box find its color in database
-            for bounding_box in newResults.itertuples():
-                # queries the component table on the database
-                component = await prisma.component.find_first(
-                    where={"name": bounding_box.name}
-                )
-                if component == None:
-                    continue
-
-                # add the color to the dataframe
-                newResults.at[bounding_box.Index, "color"] = component.color
-
-                # add the id to the dataframe
-                newResults.at[bounding_box.Index, "id"] = component.id
-
-            # close the database connection
-            await prisma.disconnect()
-
-            # # for each bounding box, generate a small uuid for each
-            # newResults["id"] = newResults.apply(
-            #     lambda row: str(uuid.uuid4())[:8], axis=1
-            # )
-
-            # Results as JSON
-            newResults.to_json(f"{image_name}.json", orient="records")
-
-            # read the json file
-            with open(f"{image_name}.json", "r") as f:
-                jsonFile = f.read()
-
-                # create a response object
-                response = make_response(
-                    jsonFile, 200, {"Content-Type": "application/json"}
-                )
-
-                # remove the json file from disk
-                delete_results(response)
-
-                # return the json file to the client
-                return response
-
-        # Results as CSV
-        results.pandas().xyxy[0].to_csv(f"{image_name}.csv", index=True)
-
-        # read the csv file
-        with open(f"{image_name}.csv", "r") as f:
-            csvFile = f.read()
-
-            # create a response object
-            response = make_response(csvFile, 200, {"Content-Type": "text/csv"})
-
-            # remove the csv file from disk
-            delete_results(response)
-
-            # return the csv file to the client
-            return response
-
-    except Exception as e:
-        print(e)
-
-        return make_response("Internal Server Error", 500)
-
-
 async def handle_json_result(raw_json_result):
     time_start = time.time()
     try:
@@ -208,47 +103,6 @@ async def handle_json_result(raw_json_result):
 
     finally:
         print(f"---handle_json_result() {time.time() - time_start} seconds ---")
-
-
-async def validate_predicted_components(
-    predicted_components_df,
-):
-    time_start = time.time()
-
-    # database:
-    prisma = Prisma()
-    await prisma.connect()
-
-    try:
-        # get all components from the database, where the ComponentVersion selected===True
-        componentversion = await prisma.componentversion.find_many(
-            where={"selected": True}
-        )
-        if len(componentversion) == 0:
-            raise Exception("Selected component version not found")
-        components = await prisma.component.find_many(
-            where={"componentVersionId": componentversion[0].id}
-        )
-        if len(components) == 0:
-            raise Exception("Component not found")
-
-        # for each component in the predicted components, check if all component names exist in components
-        for row in predicted_components_df.iterrows():
-            if row["name"] not in components:
-                raise Exception("Some components not found")
-
-        return None
-
-    except Exception as e:
-        print(e)
-        return e
-
-    finally:
-        # close the database connection
-        await prisma.disconnect()
-        print(
-            f"---validate_predicted_components() {time.time() - time_start} seconds ---"
-        )
 
 
 async def diagnose_components(
@@ -304,8 +158,6 @@ async def diagnose_components(
                             line_type_component.Component.name  # type: ignore
                             in remaining_components_df["name"].values
                         ):
-                            name = line_type_component.Component.name  # type: ignore
-
                             # get the first index of the component in the remaining components
                             index = remaining_components_df[
                                 remaining_components_df["name"]
@@ -337,8 +189,10 @@ async def diagnose_components(
                                             "color": [
                                                 line_type_component.Component.color  # type: ignore
                                             ],
-                                            "id": [
-                                                line_type_component.Component.id  # type: ignore
+                                            "key": [
+                                                str(uuid.uuid4())[
+                                                    :8
+                                                ]  # generate a small uuid
                                             ],
                                             "lineTypeId": [
                                                 line_type_component.lineTypeId
@@ -372,10 +226,24 @@ async def getDetailComponents(drawing_components_df: pd.DataFrame):
         prisma = Prisma()
         await prisma.connect()
 
-        # queries the component table on the database
-        components = await prisma.component.find_many()
+        # get all components from the database, where the ComponentVersion selected===True
+        componentversion = await prisma.componentversion.find_many(
+            where={"selected": True}
+        )
+        if len(componentversion) == 0:
+            raise Exception("Selected component version not found")
+
+        # get all components from the database, where the ComponentVersion selected===True
+        components = await prisma.component.find_many(
+            where={"componentVersionId": componentversion[0].id}
+        )
         if len(components) == 0:
             raise Exception("Component not found")
+
+        # for each component in the drawing_components_df, check if all component names exist in components
+        for index, row in drawing_components_df.iterrows():
+            if row["name"] not in components:
+                raise Exception("Some components not found")
 
         for index, row in drawing_components_df.iterrows():
             for component in components:
@@ -391,15 +259,14 @@ async def getDetailComponents(drawing_components_df: pd.DataFrame):
 
     except Exception as e:
         print(e)
-
-        return drawing_components_df
+        raise e
 
     finally:
         print(f"---getIdComponents() {time.time() - time_start} seconds ---")
 
 
-@app.route("/test-predict", methods=["POST"])
-def test_predict():
+@app.route("/predict", methods=["POST"])
+def predict():
     start_time = time.time()
     try:
         # get the drawing type id from the request
