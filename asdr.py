@@ -5,10 +5,13 @@ import time
 import uuid
 from io import BytesIO
 
+import matplotlib.pyplot as plt
 import pandas as pd
 from flask import Flask, after_this_request, make_response, request
 from flask_cors import CORS
 from pdf2image.pdf2image import convert_from_bytes
+from PIL import Image
+from scipy.spatial import ConvexHull, Voronoi, convex_hull_plot_2d, voronoi_plot_2d
 
 from drawing_tree import drawing_tree
 from prisma import Prisma  # type: ignore
@@ -62,6 +65,104 @@ def upload():
         print(e)
 
         return make_response("Internal Server Error", 500)
+
+
+def getLineTypeConvexHull(
+    line_type_component: pd.DataFrame,
+) -> tuple[list[dict[str, float]]]:
+    """
+    Returns the convex hull of the line type
+    """
+    time_start = time.time()
+    try:
+        # get center point of each line type component
+        line_type_component["center_x"] = (
+            line_type_component["xmin"] + line_type_component["xmax"]
+        ) / 2
+        line_type_component["center_y"] = (
+            line_type_component["ymin"] + line_type_component["ymax"]
+        ) / 2
+
+        # get the convex hull of the line type
+        hull = ConvexHull(line_type_component[["center_x", "center_y"]].values)
+
+        # return the convex hull as json
+        return (
+            [
+                {
+                    "x": float(line_type_component["center_x"].values[i]),
+                    "y": float(line_type_component["center_y"].values[i]),
+                }
+                for i in hull.vertices
+            ],
+        )
+
+    except Exception as e:
+        print(e)
+        raise e
+
+    finally:
+        print(f"---getIdComponents() {time.time() - time_start} seconds ---")
+
+
+def getFoundComponentsConvexHull(
+    found_components_df: pd.DataFrame,
+) -> pd.DataFrame:
+    """
+    Returns the convex hull of the found components
+    """
+    time_start = time.time()
+    try:
+        # group by line type id & atCount and generate new uuid for each group
+        groups = found_components_df.groupby(["lineTypeId", "atCount"]).groups
+        groups = pd.DataFrame(
+            {
+                "lineTypeId": [groupId[0] for groupId in groups],
+                "atCount": [groupId[1] for groupId in groups],
+                "key": [str(uuid.uuid4())[:8] for i in range(len(groups))],
+            }
+        )
+
+        # create a new dataframe to store the hull of each line type id
+        hulls = pd.DataFrame(columns=["lineTypeId", "hull", "key"])
+
+        for index, row in groups.iterrows():
+            # get the line type components of the line type id
+            line_type_components = found_components_df[
+                (found_components_df["lineTypeId"] == row["lineTypeId"])
+                & (found_components_df["atCount"] == row["atCount"])
+            ]
+
+            # skip for line type components length < 3
+            if len(line_type_components) < 3:
+                continue
+
+            # get the convex hull of the line type components
+            hull = getLineTypeConvexHull(line_type_components)
+
+            # add the hull to the hulls dataframe
+            hulls = pd.concat(
+                [
+                    hulls,
+                    pd.DataFrame(
+                        {
+                            "lineTypeId": [row["lineTypeId"]],
+                            "hull": [hull],
+                            "key": [row["key"]],
+                        }
+                    ),
+                ],
+                ignore_index=True,
+            )
+
+        return hulls
+
+    except Exception as e:
+        print(e)
+        raise e
+
+    finally:
+        print(f"---getIdComponents() {time.time() - time_start} seconds ---")
 
 
 async def diagnose_components(
@@ -137,6 +238,9 @@ async def diagnose_components(
                             found_components_df.at[
                                 last_index, "lineTypeId"
                             ] = line_type_component.lineTypeId
+
+                            # also add count number to the recently found component
+                            found_components_df.at[last_index, "atCount"] = i + 1
 
                             # remove the component from the remaining components
                             remaining_components_df.drop(index, inplace=True)
@@ -300,6 +404,10 @@ def predict():
         ):
             raise Exception("Error in diagnose: found + remaining != predicted")
 
+        # get hulls
+        hulls = getFoundComponentsConvexHull(found_components_df)
+        hulls = hulls.to_json(orient="records")
+
         # return all dfs to the client in json format
         predicted_components_json = predicted_components_df.to_json(orient="records")
         found_components_json = found_components_df.to_json(orient="records")
@@ -312,6 +420,7 @@ def predict():
                 "found_components": found_components_json,
                 "remaining_components": remaining_components_json,
                 "missing_components": missing_components_json,
+                "hulls": hulls,
             },
             200,
             {"Content-Type": "application/json"},
