@@ -313,9 +313,6 @@ def predict():
             getDetailComponents(predicted_components_df)
         )
 
-        # validate the predicted components
-        asyncio.run(validate_predicted_components(predicted_components_df))
-
         # diagnose the components
         (
             found_components_df,
