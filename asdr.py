@@ -292,6 +292,11 @@ async def diagnose_components(
             predicted_components_df.index
         )
 
+        # define: found components
+        found_components_df = predicted_components_df.copy().drop(
+            predicted_components_df.index
+        )
+
         # loop through line_types to diagnose the LineTypeComponent
         for line_type in line_types:
             for i in range(line_type.count):
@@ -307,6 +312,15 @@ async def diagnose_components(
                                 remaining_components_df["name"]
                                 == line_type_component.Component.name  # type: ignore
                             ].index[0]
+
+                            # add the component to the found components
+                            found_components_df = pd.concat(
+                                [
+                                    found_components_df,
+                                    remaining_components_df.loc[[index]],
+                                ],
+                                ignore_index=True,
+                            )
 
                             # remove the component from the remaining components
                             remaining_components_df.drop(index, inplace=True)
@@ -339,17 +353,20 @@ async def diagnose_components(
         # close the database connection
         await prisma.disconnect()
 
-        return remaining_components_df, missing_components_df
+        return found_components_df, remaining_components_df, missing_components_df
 
     except Exception as e:
         print(e)
-        return None, None
+        return None, None, None
 
     finally:
         print(f"---diagnose_components() {time.time() - time_start} seconds ---")
 
 
-async def getIdComponents(drawing_components_df: pd.DataFrame):
+async def getDetailComponents(drawing_components_df: pd.DataFrame):
+    """
+    Adds the componentId, color and key of the components to the dataframe
+    """
     time_start = time.time()
     try:
         # database:
@@ -364,7 +381,9 @@ async def getIdComponents(drawing_components_df: pd.DataFrame):
         for index, row in drawing_components_df.iterrows():
             for component in components:
                 if row["name"] == component.name:
-                    drawing_components_df.at[index, "id"] = component.id
+                    drawing_components_df.at[index, "componentId"] = component.id
+                    drawing_components_df.at[index, "color"] = component.color
+                    drawing_components_df.at[index, "key"] = str(uuid.uuid4())[:8]
                     break
 
         # close the database connection
@@ -417,54 +436,45 @@ def test_predict():
         # remove the image from disk
         os.remove(image_path)
 
-        # get json result
-        raw_json_result = results.pandas().xyxy[0].to_json(orient="records")
-        string_json_result = asyncio.run(handle_json_result(raw_json_result))
-
         # create a df from the results
         df: pd.DataFrame = results.pandas().xyxy[0]
 
         # copy from df to predicted_components_df with index
         predicted_components_df = df.copy(deep=True).reset_index()
-        print(predicted_components_df.tail())
 
-        # add column id to drawing_components_df with value of id from database
-        predicted_components_df = asyncio.run(getIdComponents(predicted_components_df))
+        # add column id & color to drawing_components_df with value of id & color from database
+        predicted_components_df = asyncio.run(
+            getDetailComponents(predicted_components_df)
+        )
 
         # validate the predicted components
         asyncio.run(validate_predicted_components(predicted_components_df))
 
         # diagnose the components
-        remaining_components_df, missing_components_df = asyncio.run(
-            diagnose_components(predicted_components_df, drawing_type_id)
-        )
-        if remaining_components_df is None or missing_components_df is None:
+        (
+            found_components_df,
+            remaining_components_df,
+            missing_components_df,
+        ) = asyncio.run(diagnose_components(predicted_components_df, drawing_type_id))
+        if (
+            found_components_df is None
+            or remaining_components_df is None
+            or missing_components_df is None
+        ):
             raise Exception("Error in diagnose components")
 
-        # use components in the remaining components to remove the components in the predicted components
-        for index, row in remaining_components_df.iterrows():
-            predicted_components_df.drop(index, inplace=True)
-
-        # # add column key to drawing_components_df with value of row index
-        predicted_components_df["key"] = predicted_components_df.index
-        # line_types_df["key"] = line_types_df.index
-        if missing_components_df is not None:
-            missing_components_df["key"] = missing_components_df.index
-        if remaining_components_df is not None:
-            remaining_components_df["key"] = remaining_components_df.index
-
-        # # return all dfs to the client in json format
-        # line_types_json = line_types_df.to_json(orient="records")
+        # return all dfs to the client in json format
         predicted_components_json = predicted_components_df.to_json(orient="records")
+        found_components_json = found_components_df.to_json(orient="records")
         missing_components_json = missing_components_df.to_json(orient="records")
         remaining_components_json = remaining_components_df.to_json(orient="records")
 
         response = make_response(
             {
                 "predicted_components": predicted_components_json,
-                "missing_components": missing_components_json,
+                "found_components": found_components_json,
                 "remaining_components": remaining_components_json,
-                "json_result": string_json_result,
+                "missing_components": missing_components_json,
             },
             200,
             {"Content-Type": "application/json"},
