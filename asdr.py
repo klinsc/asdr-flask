@@ -132,6 +132,12 @@ async def diagnose_components(
                                 ignore_index=True,
                             )
 
+                            # also add the lineTypeId to the recently found component
+                            last_index = len(found_components_df) - 1
+                            found_components_df.at[
+                                last_index, "lineTypeId"
+                            ] = line_type_component.lineTypeId
+
                             # remove the component from the remaining components
                             remaining_components_df.drop(index, inplace=True)
 
@@ -199,10 +205,13 @@ async def getDetailComponents(drawing_components_df: pd.DataFrame):
         if len(components) == 0:
             raise Exception("Component not found")
 
-        # for each component in the drawing_components_df, check if all component names exist in components
-        for index, row in drawing_components_df.iterrows():
-            if row["name"] not in components:
-                raise Exception("Some components not found")
+        # # for each component in the drawing_components_df, check if all component names exist in components
+        if not all(
+            drawing_components_df["name"].isin(
+                [component.name for component in components]
+            )
+        ):
+            raise Exception("Some components not found")
 
         for index, row in drawing_components_df.iterrows():
             for component in components:
