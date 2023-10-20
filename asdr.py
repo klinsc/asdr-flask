@@ -281,9 +281,6 @@ async def diagnose_components(
         if len(line_types) == 0:
             raise Exception("Line type not found")
 
-        for line_type in line_types:
-            print(line_type)
-
         # define: remaining components
         remaining_components_df = predicted_components_df.copy()
 
@@ -307,6 +304,8 @@ async def diagnose_components(
                             line_type_component.Component.name  # type: ignore
                             in remaining_components_df["name"].values
                         ):
+                            name = line_type_component.Component.name  # type: ignore
+
                             # get the first index of the component in the remaining components
                             index = remaining_components_df[
                                 remaining_components_df["name"]
@@ -462,6 +461,12 @@ def test_predict():
             or missing_components_df is None
         ):
             raise Exception("Error in diagnose components")
+
+        # validate that found_components_df + remaining_components_df = predicted_components_df
+        if len(predicted_components_df) != len(found_components_df) + len(
+            remaining_components_df
+        ):
+            raise Exception("Error in diagnose: found + remaining != predicted")
 
         # return all dfs to the client in json format
         predicted_components_json = predicted_components_df.to_json(orient="records")
