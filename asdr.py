@@ -209,6 +209,7 @@ async def handle_json_result(raw_json_result):
     finally:
         print(f"---handle_json_result() {time.time() - time_start} seconds ---")
 
+
 async def validate_predicted_components(
     predicted_components_df,
 ):
@@ -245,9 +246,14 @@ async def validate_predicted_components(
     finally:
         # close the database connection
         await prisma.disconnect()
-        print(f"---validate_predicted_components() {time.time() - time_start} seconds ---")
+        print(
+            f"---validate_predicted_components() {time.time() - time_start} seconds ---"
+        )
 
-async def diagnose_components(predicted_components_df: pd.DataFrame, drawing_type_id:str):
+
+async def diagnose_components(
+    predicted_components_df: pd.DataFrame, drawing_type_id: str
+):
     time_start = time.time()
     try:
         # database:
@@ -290,9 +296,9 @@ async def diagnose_components(predicted_components_df: pd.DataFrame, drawing_typ
         for line_type in line_types:
             for i in range(line_type.count):
                 # loop through the LineTypeComponents of the line type
-                for line_type_component in line_type.LineTypeComponent: # type: ignore
+                for line_type_component in line_type.LineTypeComponent:  # type: ignore
                     for i in range(line_type_component.count):
-                        if(
+                        if (
                             line_type_component.Component.name  # type: ignore
                             in remaining_components_df["name"].values
                         ):
@@ -307,7 +313,7 @@ async def diagnose_components(predicted_components_df: pd.DataFrame, drawing_typ
 
                         # add the component to the missing components
                         else:
-                            missing_components_df=pd.concat(
+                            missing_components_df = pd.concat(
                                 [
                                     missing_components_df,
                                     pd.DataFrame(
@@ -321,20 +327,19 @@ async def diagnose_components(predicted_components_df: pd.DataFrame, drawing_typ
                                             "id": [
                                                 line_type_component.Component.id  # type: ignore
                                             ],
-                                            "lineTypeName":[
-                                                line_type.name
+                                            "lineTypeId": [
+                                                line_type_component.lineTypeId
                                             ],
                                         }
                                     ),
-                                ]
-                                ,ignore_index=True
+                                ],
+                                ignore_index=True,
                             )
-
 
         # close the database connection
         await prisma.disconnect()
 
-        return remaining_components_df,missing_components_df
+        return remaining_components_df, missing_components_df
 
     except Exception as e:
         print(e)
@@ -343,7 +348,8 @@ async def diagnose_components(predicted_components_df: pd.DataFrame, drawing_typ
     finally:
         print(f"---diagnose_components() {time.time() - time_start} seconds ---")
 
-async def getIdComponents(drawing_components_df:pd.DataFrame):
+
+async def getIdComponents(drawing_components_df: pd.DataFrame):
     time_start = time.time()
     try:
         # database:
@@ -372,6 +378,7 @@ async def getIdComponents(drawing_components_df:pd.DataFrame):
 
     finally:
         print(f"---getIdComponents() {time.time() - time_start} seconds ---")
+
 
 @app.route("/test-predict", methods=["POST"])
 def test_predict():
@@ -415,7 +422,7 @@ def test_predict():
         string_json_result = asyncio.run(handle_json_result(raw_json_result))
 
         # create a df from the results
-        df:pd.DataFrame = results.pandas().xyxy[0]
+        df: pd.DataFrame = results.pandas().xyxy[0]
 
         # copy from df to predicted_components_df with index
         predicted_components_df = df.copy(deep=True).reset_index()
@@ -428,8 +435,10 @@ def test_predict():
         asyncio.run(validate_predicted_components(predicted_components_df))
 
         # diagnose the components
-        remaining_components_df,missing_components_df = asyncio.run(diagnose_components(predicted_components_df, drawing_type_id))
-        if(remaining_components_df is None or missing_components_df is None):
+        remaining_components_df, missing_components_df = asyncio.run(
+            diagnose_components(predicted_components_df, drawing_type_id)
+        )
+        if remaining_components_df is None or missing_components_df is None:
             raise Exception("Error in diagnose components")
 
         # use components in the remaining components to remove the components in the predicted components
@@ -439,18 +448,16 @@ def test_predict():
         # # add column key to drawing_components_df with value of row index
         predicted_components_df["key"] = predicted_components_df.index
         # line_types_df["key"] = line_types_df.index
-        if(missing_components_df is not None):
+        if missing_components_df is not None:
             missing_components_df["key"] = missing_components_df.index
-        if(remaining_components_df is not None):
+        if remaining_components_df is not None:
             remaining_components_df["key"] = remaining_components_df.index
 
-    
         # # return all dfs to the client in json format
         # line_types_json = line_types_df.to_json(orient="records")
         predicted_components_json = predicted_components_df.to_json(orient="records")
         missing_components_json = missing_components_df.to_json(orient="records")
         remaining_components_json = remaining_components_df.to_json(orient="records")
-
 
         response = make_response(
             {
@@ -473,6 +480,7 @@ def test_predict():
         return make_response("Internal Server Error", 500)
     finally:
         print(f"---test_predict() {time.time() - start_time} seconds ---")
+
 
 if __name__ == "__main__":
     app.run(debug=False, host="0.0.0.0")
