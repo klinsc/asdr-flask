@@ -3,15 +3,18 @@ import json
 import os
 import time
 import uuid
+from collections import Counter
 from io import BytesIO
 
 import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
 from flask import Flask, after_this_request, make_response, request
 from flask_cors import CORS
 from pdf2image.pdf2image import convert_from_bytes
 from PIL import Image
 from scipy.spatial import ConvexHull, Voronoi, convex_hull_plot_2d, voronoi_plot_2d
+from sklearn.cluster import AgglomerativeClustering
 
 from drawing_tree import drawing_tree
 from prisma import Prisma  # type: ignore
@@ -67,6 +70,282 @@ def upload():
         return make_response("Internal Server Error", 500)
 
 
+def getClusteredComponents(found_components_df: pd.DataFrame) -> pd.DataFrame | None:
+    try:
+        clustered_found_components_df = found_components_df.copy(deep=True)
+
+        # Create a dataset from the list of found components
+        posX = []
+        posY = []
+        for index, row in clustered_found_components_df.iterrows():
+            posX.append(row["center_x"])
+            posY.append(row["center_y"])
+        nodes = np.array([posX, posY]).T
+        # flip upside down
+        nodes[:, 1] = -nodes[:, 1]
+
+        # Define a custom distance metric
+        def max_distance(node1, node2):
+            return max(abs(node1[0] - node2[0]), abs(node1[1] - node2[1]))
+
+        # Create a distance matrix
+        distance_matrix = np.array(
+            [[max_distance(node1, node2) for node2 in nodes] for node1 in nodes]
+        )
+
+        # Perform clustering
+        clustering = AgglomerativeClustering(
+            n_clusters=10, affinity="precomputed", linkage="average"
+        )
+        clustering.fit(distance_matrix)
+
+        # # Get line type ids as metadata for each node
+        # metadata = clustered_found_components_df["lineTypeId"].values
+
+        # # Create a dictionary that maps each node to its metadata
+        # node_to_metadata = {
+        #     tuple(node): line_type_id for node, line_type_id in zip(nodes, metadata)
+        # }
+
+        # # Create a mapping from cluster labels to metadata categories
+        # cluster_to_metadata = {}
+
+        # for label in set(clustering.labels_):
+        #     # Get the metadata categories for all nodes in this cluster
+        #     category_in_cluster = [
+        #         node_to_metadata[tuple(node)]
+        #         for node in nodes[clustering.labels_ == label]
+        #     ]
+
+        #     # Find the most common category
+        #     most_common_category = Counter(category_in_cluster).most_common(1)[0][0]
+
+        #     # Map the cluster label to the most common category
+        #     cluster_to_metadata[label] = most_common_category
+
+        # # add the cluster to the dataframe with normalised cluster labels (start from 0,1)
+        # clustered_found_components_df["cluster"] = clustering.labels_
+
+        # # add the cluster metadata to the dataframe
+        # clustered_found_components_df["cluster_line_type_id"] = [
+        #     cluster_to_metadata[cluster]
+        #     for cluster in clustered_found_components_df["cluster"].values
+        # ]
+
+        # add the cluster to the dataframe
+        clustered_found_components_df["cluster"] = clustering.labels_
+
+        # /10 to normalise the cluster labels
+        clustered_found_components_df["cluster"] = (
+            clustered_found_components_df["cluster"] / 10
+        )
+
+        return clustered_found_components_df
+
+    except Exception as e:
+        print(e)
+        return None
+
+
+def sortLineTypeComponents(found_components_df: pd.DataFrame) -> pd.DataFrame | None:
+    # algorithm to swap closest points to correct the group
+    # 1. pick one line type id
+    # 2. pick one node from the line type id that "checked"===false
+    # 3. get the next node from the line type id
+    # 4. get the closest node from all other line type ids inlcuding the current line type id
+    # 5. mark the node "checked"=true, and if found, swap the next node with the closest node, go to step 2
+
+    try:
+        # create a new dataframe to store the sorted line type components
+        sorted_line_type_components_df = found_components_df.copy(deep=True)
+
+        # get all line type ids
+        line_type_ids = sorted_line_type_components_df["lineTypeId"].unique()
+
+        # loop through all line type ids
+        for line_type_id in line_type_ids:
+            # get all line type components of the line type id
+            line_type_components_df = sorted_line_type_components_df[
+                sorted_line_type_components_df["lineTypeId"] == line_type_id
+            ]
+
+            # get all unique groups of the line type id
+            groups = line_type_components_df["group"].unique()
+
+            # loop through all groups
+            for group in groups:
+                # get all line type components of the group
+                group_df = line_type_components_df[
+                    line_type_components_df["group"] == group
+                ]
+
+                # mark first node checked
+                sorted_line_type_components_df.at[
+                    sorted_line_type_components_df[
+                        sorted_line_type_components_df["key"] == group_df.iloc[0]["key"]
+                    ].index[0],
+                    "checked",
+                ] = True
+
+                # get all line type components of the line type id
+                line_type_components_df = sorted_line_type_components_df[
+                    sorted_line_type_components_df["lineTypeId"] == line_type_id
+                ]
+
+                # get all line type components of the group
+                group_df = line_type_components_df[
+                    line_type_components_df["group"] == group
+                ]
+
+                # while there are still unchecked line type components in the group
+                while len(group_df[group_df["checked"] == False]) > 0:
+                    # print the group
+                    print(group_df)
+
+                    # get the last checked node as pillar
+                    pillars = group_df[group_df["checked"] == True]
+                    if len(pillars) == 0:
+                        continue
+                    pillar = pillars.iloc[-1]
+
+                    # get the next node that is not checked
+                    next_nodes = group_df[group_df["checked"] == False]
+                    if len(next_nodes) == 0:
+                        continue
+                    next_node = next_nodes.iloc[0]
+
+                    # with the same node name, get the closest node from current and all other line type components
+                    closest_nodes = sorted_line_type_components_df[
+                        (sorted_line_type_components_df["name"] == next_node["name"])
+                        & (sorted_line_type_components_df["checked"] == False)
+                    ]
+
+                    # if there is no closest node, then skip
+                    if len(closest_nodes) == 0:
+                        continue
+
+                    # calculate the distance between the pillar and the closest node
+                    closest_nodes["distance"] = (
+                        (closest_nodes["center_x"] - pillar["center_x"]) ** 2
+                        + (closest_nodes["center_y"] - pillar["center_y"]) ** 2
+                    ) ** 0.5
+
+                    # get the closest node to the pillar
+                    closest_node = closest_nodes.iloc[
+                        closest_nodes["distance"].argmin()
+                    ]
+                    if (
+                        closest_node is None
+                        or (closest_node["key"] == next_node["key"])
+                        # or (
+                        #     closest_node["lineTypeId"] == next_node["lineTypeId"]
+                        #     and closest_node["group"] == next_node["group"]
+                        # )
+                    ):
+                        # mark the next node checked
+                        sorted_line_type_components_df.at[
+                            sorted_line_type_components_df[
+                                sorted_line_type_components_df["key"] == next_node.key
+                            ].index[0],
+                            "checked",
+                        ] = True
+
+                        # get all line type components of the line type id
+                        line_type_components_df = sorted_line_type_components_df[
+                            sorted_line_type_components_df["lineTypeId"] == line_type_id
+                        ]
+                        # get all line type components of the group
+                        group_df = line_type_components_df[
+                            line_type_components_df["group"] == group
+                        ]
+
+                        continue
+
+                    # swap the next node with the closest node
+                    # xmin, ymin, xmax, ymax, center_x, center_y, lineTypeId, group
+                    # print(
+                    #     "old_next_node",
+                    #     sorted_line_type_components_df.at[next_node.key],
+                    # )
+                    # print(
+                    #     "old_closest_node",
+                    #     sorted_line_type_components_df.at[closest_node.key],
+                    # )
+
+                    swaps = [
+                        "xmin",
+                        "ymin",
+                        "xmax",
+                        "ymax",
+                        "center_x",
+                        "center_y",
+                    ]
+                    for swap in swaps:
+                        old_next_node_value = sorted_line_type_components_df.loc[
+                            sorted_line_type_components_df[
+                                sorted_line_type_components_df["key"]
+                                == next_node["key"]
+                            ].index[0],
+                            swap,
+                        ]
+                        old_closest_node_value = sorted_line_type_components_df.loc[
+                            sorted_line_type_components_df[
+                                sorted_line_type_components_df["key"]
+                                == closest_node["key"]
+                            ].index[0],
+                            swap,
+                        ]
+
+                        sorted_line_type_components_df.loc[
+                            sorted_line_type_components_df[
+                                sorted_line_type_components_df["key"]
+                                == next_node["key"]
+                            ].index[0],
+                            swap,
+                        ] = old_closest_node_value
+                        sorted_line_type_components_df.loc[
+                            sorted_line_type_components_df[
+                                sorted_line_type_components_df["key"]
+                                == closest_node["key"]
+                            ].index[0],
+                            swap,
+                        ] = old_next_node_value
+
+                    # print(
+                    #     "new_next_node",
+                    #     sorted_line_type_components_df.at[next_node.key],
+                    # )
+                    # print(
+                    #     "new_closest_node",
+                    #     sorted_line_type_components_df.at[closest_node.key],
+                    # )
+
+                    # mark the next node checked
+                    sorted_line_type_components_df.at[
+                        sorted_line_type_components_df[
+                            sorted_line_type_components_df["key"] == next_node.key
+                        ].index[0],
+                        "checked",
+                    ] = True
+
+                    # get all line type components of the line type id
+                    line_type_components_df = sorted_line_type_components_df[
+                        sorted_line_type_components_df["lineTypeId"] == line_type_id
+                    ]
+                    # get all line type components of the group
+                    group_df = line_type_components_df[
+                        line_type_components_df["group"] == group
+                    ]
+
+                    continue
+
+        return sorted_line_type_components_df
+
+    except Exception as e:
+        print(e)
+        return None
+
+
 def getLineTypeConvexHull(
     line_type_component: pd.DataFrame,
 ) -> tuple[list[dict[str, float]]]:
@@ -113,24 +392,22 @@ def getFoundComponentsConvexHull(
     """
     time_start = time.time()
     try:
-        # group by line type id & atCount and generate new uuid for each group
-        groups = found_components_df.groupby(["lineTypeId", "atCount"]).groups
+        print(found_components_df)
+        # group by line type id & group and generate new uuid for each group
         groups = pd.DataFrame(
-            {
-                "lineTypeId": [groupId[0] for groupId in groups],
-                "atCount": [groupId[1] for groupId in groups],
-                "key": [str(uuid.uuid4())[:8] for i in range(len(groups))],
-            }
-        )
+            found_components_df.groupby(["lineTypeId", "group"]).size()
+        ).reset_index()
+        groups["key"] = [str(uuid.uuid4())[:8] for i in range(len(groups))]
+        print(groups)
 
         # create a new dataframe to store the hull of each line type id
-        hulls = pd.DataFrame(columns=["lineTypeId", "hull", "key"])
+        hulls = pd.DataFrame(columns=["lineTypeId", "points", "key"])
 
         for index, row in groups.iterrows():
             # get the line type components of the line type id
             line_type_components = found_components_df[
                 (found_components_df["lineTypeId"] == row["lineTypeId"])
-                & (found_components_df["atCount"] == row["atCount"])
+                & (found_components_df["group"] == row["group"])
             ]
 
             # skip for line type components length < 3
@@ -147,7 +424,7 @@ def getFoundComponentsConvexHull(
                     pd.DataFrame(
                         {
                             "lineTypeId": [row["lineTypeId"]],
-                            "hull": [hull],
+                            "points": [hull[0]],
                             "key": [row["key"]],
                         }
                     ),
@@ -213,7 +490,7 @@ async def diagnose_components(
             for i in range(line_type.count):
                 # loop through the LineTypeComponents of the line type
                 for line_type_component in line_type.LineTypeComponent:  # type: ignore
-                    for i in range(line_type_component.count):
+                    for j in range(line_type_component.count):
                         if (
                             line_type_component.Component.name  # type: ignore
                             in remaining_components_df["name"].values
@@ -239,8 +516,21 @@ async def diagnose_components(
                                 last_index, "lineTypeId"
                             ] = line_type_component.lineTypeId
 
-                            # also add count number to the recently found component
-                            found_components_df.at[last_index, "atCount"] = i + 1
+                            # also add group number to the recently found component
+                            found_components_df.at[last_index, "group"] = i
+
+                            # also add center point to the recently found component
+                            found_components_df.at[last_index, "center_x"] = (
+                                found_components_df.at[last_index, "xmin"]
+                                + found_components_df.at[last_index, "xmax"]
+                            ) / 2
+                            found_components_df.at[last_index, "center_y"] = (
+                                found_components_df.at[last_index, "ymin"]
+                                + found_components_df.at[last_index, "ymax"]
+                            ) / 2
+
+                            # also add checked to the recently found component
+                            found_components_df.at[last_index, "checked"] = False
 
                             # remove the component from the remaining components
                             remaining_components_df.drop(index, inplace=True)
@@ -404,15 +694,34 @@ def predict():
         ):
             raise Exception("Error in diagnose: found + remaining != predicted")
 
+        # sort the line type components
+        new_found_components_df = sortLineTypeComponents(found_components_df)
+        if new_found_components_df is None:
+            raise Exception("Error in sort line type components")
+
+        # validate that found_components_df + remaining_components_df = predicted_components_df
+        if len(predicted_components_df) != len(new_found_components_df) + len(
+            remaining_components_df
+        ):
+            raise Exception("Error in sort: found + remaining != predicted")
+
         # get hulls
-        hulls = getFoundComponentsConvexHull(found_components_df)
+        hulls = getFoundComponentsConvexHull(new_found_components_df)
         hulls = hulls.to_json(orient="records")
+
+        clustered_found_components_df = getClusteredComponents(new_found_components_df)
+        if clustered_found_components_df is None:
+            raise Exception("Error in cluster components")
+        print(clustered_found_components_df.tail(10))
 
         # return all dfs to the client in json format
         predicted_components_json = predicted_components_df.to_json(orient="records")
         found_components_json = found_components_df.to_json(orient="records")
         missing_components_json = missing_components_df.to_json(orient="records")
         remaining_components_json = remaining_components_df.to_json(orient="records")
+        clustered_found_components_json = clustered_found_components_df.to_json(
+            orient="records"
+        )
 
         response = make_response(
             {
@@ -421,6 +730,7 @@ def predict():
                 "remaining_components": remaining_components_json,
                 "missing_components": missing_components_json,
                 "hulls": hulls,
+                "clustered_found_components": clustered_found_components_json,
             },
             200,
             {"Content-Type": "application/json"},
