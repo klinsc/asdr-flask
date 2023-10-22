@@ -99,41 +99,41 @@ def getClusteredComponents(found_components_df: pd.DataFrame) -> pd.DataFrame | 
         )
         clustering.fit(distance_matrix)
 
-        # # Get line type ids as metadata for each node
-        # metadata = clustered_found_components_df["lineTypeId"].values
+        # Get line type ids as metadata for each node
+        metadata = clustered_found_components_df["groupX"].values
 
-        # # Create a dictionary that maps each node to its metadata
-        # node_to_metadata = {
-        #     tuple(node): line_type_id for node, line_type_id in zip(nodes, metadata)
-        # }
+        # Create a dictionary that maps each node to its metadata
+        node_to_metadata = {
+            tuple(node): line_type_id for node, line_type_id in zip(nodes, metadata)
+        }
 
-        # # Create a mapping from cluster labels to metadata categories
-        # cluster_to_metadata = {}
+        # Create a mapping from cluster labels to metadata categories
+        cluster_to_metadata = {}
 
-        # for label in set(clustering.labels_):
-        #     # Get the metadata categories for all nodes in this cluster
-        #     category_in_cluster = [
-        #         node_to_metadata[tuple(node)]
-        #         for node in nodes[clustering.labels_ == label]
-        #     ]
+        for label in set(clustering.labels_):
+            # Get the metadata categories for all nodes in this cluster
+            category_in_cluster = [
+                node_to_metadata[tuple(node)]
+                for node in nodes[clustering.labels_ == label]
+            ]
 
-        #     # Find the most common category
-        #     most_common_category = Counter(category_in_cluster).most_common(1)[0][0]
+            # Find the most common category
+            most_common_category = Counter(category_in_cluster).most_common(1)[0][0]
 
-        #     # Map the cluster label to the most common category
-        #     cluster_to_metadata[label] = most_common_category
+            # Map the cluster label to the most common category
+            cluster_to_metadata[label] = most_common_category
 
-        # # add the cluster to the dataframe with normalised cluster labels (start from 0,1)
-        # clustered_found_components_df["cluster"] = clustering.labels_
-
-        # # add the cluster metadata to the dataframe
-        # clustered_found_components_df["cluster_line_type_id"] = [
-        #     cluster_to_metadata[cluster]
-        #     for cluster in clustered_found_components_df["cluster"].values
-        # ]
-
-        # add the cluster to the dataframe
+        # add the cluster to the dataframe with normalised cluster labels (start from 0,1)
         clustered_found_components_df["cluster"] = clustering.labels_
+
+        # add the cluster metadata to the dataframe
+        clustered_found_components_df["clusterLineTypeId"] = [
+            cluster_to_metadata[cluster]
+            for cluster in clustered_found_components_df["cluster"].values
+        ]
+
+        # # add the cluster to the dataframe
+        # clustered_found_components_df["cluster"] = clustering.labels_
 
         # /10 to normalise the cluster labels
         clustered_found_components_df["cluster"] = (
@@ -528,6 +528,11 @@ async def diagnose_components(
                                 found_components_df.at[last_index, "ymin"]
                                 + found_components_df.at[last_index, "ymax"]
                             ) / 2
+
+                            # also add groupX to the recently found component, which is a combination of lineTypeId and group
+                            found_components_df.at[
+                                last_index, "groupX"
+                            ] = f"{line_type_component.lineTypeId}-{i}"
 
                             # also add checked to the recently found component
                             found_components_df.at[last_index, "checked"] = False
