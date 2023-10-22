@@ -6,24 +6,22 @@ import uuid
 from collections import Counter
 from io import BytesIO
 
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from flask import Flask, after_this_request, make_response, request
+from flask import Flask, make_response, request
 from flask_cors import CORS
 from pdf2image.pdf2image import convert_from_bytes
 from PIL import Image
-from scipy.spatial import ConvexHull, Voronoi, convex_hull_plot_2d, voronoi_plot_2d
+from scipy.spatial import ConvexHull
 from sklearn.cluster import AgglomerativeClustering
 
-from drawing_tree import drawing_tree
-from prisma import Prisma  # type: ignore
+from prisma import Prisma
 from yolov5 import YoloV5
 
 os.environ["PRISMA_HOME_DIR "] = "/var/tmp"
 os.environ["PRISMA_BINARY_CACHE_DIR"] = "/var/tmp"
 
-# create a flask server to receive the pdf file and convert it to images and send it back to the client
+
 app = Flask(__name__)
 cors = CORS(app, resources={r"/*": {"origins": "*"}})
 
@@ -70,6 +68,56 @@ def upload():
         return make_response("Internal Server Error", 500)
 
 
+def sortComponentsByClustered(
+    found_components_df: pd.DataFrame, n_clusters: int
+) -> pd.DataFrame | None:
+    try:
+        sorted_components_df = found_components_df.copy(deep=True)
+
+        # add center point to the dataframe
+        sorted_components_df["center_x"] = (
+            sorted_components_df["xmin"] + sorted_components_df["xmax"]
+        ) / 2
+        sorted_components_df["center_y"] = (
+            sorted_components_df["ymin"] + sorted_components_df["ymax"]
+        ) / 2
+
+        # Create a dataset from the list of found components
+        posX = []
+        posY = []
+        for index, row in sorted_components_df.iterrows():
+            posX.append(row["center_x"])
+            posY.append(row["center_y"])
+        nodes = np.array([posX, posY]).T
+        # flip upside down
+        nodes[:, 1] = -nodes[:, 1]
+
+        # Define a custom distance metric
+        def max_distance(node1, node2):
+            return max(abs(node1[0] - node2[0]), abs(node1[1] - node2[1]))
+
+        # Create a distance matrix
+        distance_matrix = np.array(
+            [[max_distance(node1, node2) for node2 in nodes] for node1 in nodes]
+        )
+
+        # Perform clustering
+        clustering = AgglomerativeClustering(
+            n_clusters=n_clusters, affinity="precomputed", linkage="average"
+        )
+        clustering.fit(distance_matrix)
+
+        # Sort the found components by cluster and xmin and ymin
+        sorted_components_df["cluster"] = clustering.labels_
+        sorted_components_df.sort_values(by=["cluster", "xmin", "ymin"], inplace=True)
+
+        return sorted_components_df
+
+    except Exception as e:
+        print(e)
+        return None
+
+
 def getClusteredComponents(found_components_df: pd.DataFrame) -> pd.DataFrame | None:
     try:
         clustered_found_components_df = found_components_df.copy(deep=True)
@@ -93,51 +141,51 @@ def getClusteredComponents(found_components_df: pd.DataFrame) -> pd.DataFrame | 
             [[max_distance(node1, node2) for node2 in nodes] for node1 in nodes]
         )
 
+        # get n_clusters from the number of unique group multiplied by 1.2
+        n_clusters = round(len(clustered_found_components_df["groupX"].unique()) * 1.2)
+
         # Perform clustering
         clustering = AgglomerativeClustering(
-            n_clusters=10, affinity="precomputed", linkage="average"
+            n_clusters=n_clusters, affinity="precomputed", linkage="average"
         )
         clustering.fit(distance_matrix)
 
-        # # Get line type ids as metadata for each node
-        # metadata = clustered_found_components_df["lineTypeId"].values
+        # Get line type ids as metadata for each node
+        metadata = clustered_found_components_df["groupX"].values
 
-        # # Create a dictionary that maps each node to its metadata
-        # node_to_metadata = {
-        #     tuple(node): line_type_id for node, line_type_id in zip(nodes, metadata)
-        # }
+        # Create a dictionary that maps each node to its metadata
+        node_to_metadata = {
+            tuple(node): line_type_id for node, line_type_id in zip(nodes, metadata)
+        }
 
-        # # Create a mapping from cluster labels to metadata categories
-        # cluster_to_metadata = {}
+        # Create a mapping from cluster labels to metadata categories
+        cluster_to_metadata = {}
 
-        # for label in set(clustering.labels_):
-        #     # Get the metadata categories for all nodes in this cluster
-        #     category_in_cluster = [
-        #         node_to_metadata[tuple(node)]
-        #         for node in nodes[clustering.labels_ == label]
-        #     ]
+        for label in set(clustering.labels_):
+            # Get the metadata categories for all nodes in this cluster
+            category_in_cluster = [
+                node_to_metadata[tuple(node)]
+                for node in nodes[clustering.labels_ == label]
+            ]
 
-        #     # Find the most common category
-        #     most_common_category = Counter(category_in_cluster).most_common(1)[0][0]
+            # Find the most common category
+            most_common_category = Counter(category_in_cluster).most_common(1)[0][0]
 
-        #     # Map the cluster label to the most common category
-        #     cluster_to_metadata[label] = most_common_category
+            # Map the cluster label to the most common category
+            cluster_to_metadata[label] = most_common_category
 
-        # # add the cluster to the dataframe with normalised cluster labels (start from 0,1)
-        # clustered_found_components_df["cluster"] = clustering.labels_
-
-        # # add the cluster metadata to the dataframe
-        # clustered_found_components_df["cluster_line_type_id"] = [
-        #     cluster_to_metadata[cluster]
-        #     for cluster in clustered_found_components_df["cluster"].values
-        # ]
-
-        # add the cluster to the dataframe
+        # add the cluster to the dataframe with normalised cluster labels (start from 0,1)
         clustered_found_components_df["cluster"] = clustering.labels_
 
-        # /10 to normalise the cluster labels
+        # add the cluster metadata to the dataframe
+        clustered_found_components_df["clusterLineTypeId"] = [
+            cluster_to_metadata[cluster]
+            for cluster in clustered_found_components_df["cluster"].values
+        ]
+
+        # /n_clusters to normalise the cluster labels, for visualisation purpose
         clustered_found_components_df["cluster"] = (
-            clustered_found_components_df["cluster"] / 10
+            clustered_found_components_df["cluster"] / n_clusters
         )
 
         return clustered_found_components_df
@@ -532,6 +580,11 @@ async def diagnose_components(
                             # also add checked to the recently found component
                             found_components_df.at[last_index, "checked"] = False
 
+                            # also add groupX to the recently found component, which is a combination of lineTypeId and group
+                            found_components_df.at[
+                                last_index, "groupX"
+                            ] = f"{line_type_component.lineTypeId}-{i}"
+
                             # remove the component from the remaining components
                             remaining_components_df.drop(index, inplace=True)
 
@@ -565,11 +618,11 @@ async def diagnose_components(
         # close the database connection
         await prisma.disconnect()
 
-        return found_components_df, remaining_components_df, missing_components_df
+        return found_components_df
 
     except Exception as e:
         print(e)
-        return None, None, None
+        return None
 
     finally:
         print(f"---diagnose_components() {time.time() - time_start} seconds ---")
@@ -627,8 +680,29 @@ async def getDetailComponents(drawing_components_df: pd.DataFrame):
         print(f"---getIdComponents() {time.time() - time_start} seconds ---")
 
 
+async def getNClusters(drawing_type_id: str) -> int:
+    try:
+        # get line type with count from db
+        prisma = Prisma()
+        await prisma.connect()
+        line_types = await prisma.linetype.find_many(
+            where={"drawingTypeId": drawing_type_id}
+        )
+
+        await prisma.disconnect()
+        # get n_clusters from the number of total line type with count > 0
+        n_clusters = round(
+            len([line_type for line_type in line_types if line_type.count > 0])
+        )
+
+        return n_clusters
+    except Exception as e:
+        print(e)
+        raise e
+
+
 @app.route("/predict", methods=["POST"])
-def predict():
+async def predict():
     start_time = time.time()
     try:
         # get the drawing type id from the request
@@ -667,69 +741,42 @@ def predict():
         # create a df from the results
         df: pd.DataFrame = results.pandas().xyxy[0]
 
+        #
+        #
+        #
+
         # copy from df to predicted_components_df with index
         predicted_components_df = df.copy(deep=True).reset_index()
 
         # add column id & color to drawing_components_df with value of id & color from database
-        predicted_components_df = asyncio.run(
-            getDetailComponents(predicted_components_df)
+        predicted_components_df = await getDetailComponents(predicted_components_df)
+
+        n_clusters = await getNClusters(drawing_type_id)
+
+        # sort the predicted components by cluster
+        predicted_components_df = sortComponentsByClustered(
+            predicted_components_df, n_clusters
         )
+        if predicted_components_df is None:
+            raise Exception("Error in sort components by cluster")
+
+        #
+        #
+        #
 
         # diagnose the components
-        (
-            found_components_df,
-            remaining_components_df,
-            missing_components_df,
-        ) = asyncio.run(diagnose_components(predicted_components_df, drawing_type_id))
-        if (
-            found_components_df is None
-            or remaining_components_df is None
-            or missing_components_df is None
-        ):
-            raise Exception("Error in diagnose components")
-
-        # validate that found_components_df + remaining_components_df = predicted_components_df
-        if len(predicted_components_df) != len(found_components_df) + len(
-            remaining_components_df
-        ):
-            raise Exception("Error in diagnose: found + remaining != predicted")
-
-        # sort the line type components
-        new_found_components_df = sortLineTypeComponents(found_components_df)
-        if new_found_components_df is None:
-            raise Exception("Error in sort line type components")
-
-        # validate that found_components_df + remaining_components_df = predicted_components_df
-        if len(predicted_components_df) != len(new_found_components_df) + len(
-            remaining_components_df
-        ):
-            raise Exception("Error in sort: found + remaining != predicted")
-
-        # get hulls
-        hulls = getFoundComponentsConvexHull(new_found_components_df)
-        hulls = hulls.to_json(orient="records")
-
-        clustered_found_components_df = getClusteredComponents(new_found_components_df)
+        clustered_found_components_df = await diagnose_components(
+            predicted_components_df, drawing_type_id
+        )
         if clustered_found_components_df is None:
-            raise Exception("Error in cluster components")
-        print(clustered_found_components_df.tail(10))
-
+            raise Exception("Error in diagnose components")
         # return all dfs to the client in json format
-        predicted_components_json = predicted_components_df.to_json(orient="records")
-        found_components_json = found_components_df.to_json(orient="records")
-        missing_components_json = missing_components_df.to_json(orient="records")
-        remaining_components_json = remaining_components_df.to_json(orient="records")
         clustered_found_components_json = clustered_found_components_df.to_json(
             orient="records"
         )
 
         response = make_response(
             {
-                "predicted_components": predicted_components_json,
-                "found_components": found_components_json,
-                "remaining_components": remaining_components_json,
-                "missing_components": missing_components_json,
-                "hulls": hulls,
                 "clustered_found_components": clustered_found_components_json,
             },
             200,
