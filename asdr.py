@@ -100,7 +100,7 @@ def getClusteredComponents(found_components_df: pd.DataFrame) -> pd.DataFrame | 
         clustering.fit(distance_matrix)
 
         # Get line type ids as metadata for each node
-        metadata = clustered_found_components_df["groupX"].values
+        metadata = clustered_found_components_df["lineTypeIdNumber"].values
 
         # Create a dictionary that maps each node to its metadata
         node_to_metadata = {
@@ -442,6 +442,76 @@ def getFoundComponentsConvexHull(
         print(f"---getIdComponents() {time.time() - time_start} seconds ---")
 
 
+async def getClusteredConvexHull(
+    clustered_found_components_df: pd.DataFrame,
+) -> pd.DataFrame:
+    """
+    Returns the convex hull of the clustered found components
+    """
+    time_start = time.time()
+    try:
+        # group by line type id & group and generate new uuid for each group
+        groups = pd.DataFrame(
+            clustered_found_components_df.groupby(["clusterLineTypeId", "cluster"])
+            .size()
+            .reset_index()
+        )
+        groups["key"] = [str(uuid.uuid4())[:8] for i in range(len(groups))]
+
+        # create a new dataframe to store the hull of each line type id
+        hulls = pd.DataFrame(columns=["lineTypeId", "points", "key", "lineTypeName"])
+
+        for index, row in groups.iterrows():
+            # get the line type components of the line type id
+            line_type_components = clustered_found_components_df[
+                (
+                    clustered_found_components_df["clusterLineTypeId"]
+                    == row["clusterLineTypeId"]
+                )
+                & (clustered_found_components_df["cluster"] == row["cluster"])
+            ]
+
+            # skip for line type components length < 3
+            if len(line_type_components) < 3:
+                continue
+
+            # get the convex hull of the line type components
+            hull = getLineTypeConvexHull(line_type_components)
+
+            # get the line type name from db
+            prisma = Prisma()
+            await prisma.connect()
+            line_type_id = row["clusterLineTypeId"].split("-")[0]
+            line_type = await prisma.linetype.find_first(where={"id": line_type_id})
+            if line_type == None:
+                raise Exception("Line type not found")
+
+            # add the hull to the hulls dataframe
+            hulls = pd.concat(
+                [
+                    hulls,
+                    pd.DataFrame(
+                        {
+                            "lineTypeId": [row["clusterLineTypeId"]],
+                            "points": [hull[0]],
+                            "key": [row["key"]],
+                            "lineTypeName": [line_type.name],
+                        }
+                    ),
+                ],
+                ignore_index=True,
+            )
+
+        return hulls
+
+    except Exception as e:
+        print(e)
+        raise e
+
+    finally:
+        print(f"---getIdComponents() {time.time() - time_start} seconds ---")
+
+
 async def diagnose_components(
     predicted_components_df: pd.DataFrame, drawing_type_id: str
 ):
@@ -529,9 +599,9 @@ async def diagnose_components(
                                 + found_components_df.at[last_index, "ymax"]
                             ) / 2
 
-                            # also add groupX to the recently found component, which is a combination of lineTypeId and group
+                            # also add lineTypeIdNumber to the recently found component, which is a combination of lineTypeId and group
                             found_components_df.at[
-                                last_index, "groupX"
+                                last_index, "lineTypeIdNumber"
                             ] = f"{line_type_component.lineTypeId}-{i}"
 
                             # also add checked to the recently found component
@@ -561,6 +631,10 @@ async def diagnose_components(
                                             "lineTypeId": [
                                                 line_type_component.lineTypeId
                                             ],
+                                            "lineTypeIdNumber": [
+                                                f"{line_type_component.lineTypeId}-{i}"
+                                            ],
+                                            "lineTypeName": [line_type.name],
                                         }
                                     ),
                                 ],
@@ -710,14 +784,17 @@ def predict():
         ):
             raise Exception("Error in sort: found + remaining != predicted")
 
-        # get hulls
-        hulls = getFoundComponentsConvexHull(new_found_components_df)
-        hulls = hulls.to_json(orient="records")
+        # # get hulls
+        # hulls = getFoundComponentsConvexHull(new_found_components_df)
+        # hulls = hulls.to_json(orient="records")
 
         clustered_found_components_df = getClusteredComponents(new_found_components_df)
         if clustered_found_components_df is None:
             raise Exception("Error in cluster components")
-        print(clustered_found_components_df.tail(10))
+
+            # get hulls
+        hulls = asyncio.run(getClusteredConvexHull(clustered_found_components_df))
+        hulls = hulls.to_json(orient="records")
 
         # return all dfs to the client in json format
         predicted_components_json = predicted_components_df.to_json(orient="records")
