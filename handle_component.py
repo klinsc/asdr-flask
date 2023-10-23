@@ -104,7 +104,16 @@ class HandleComponent:
             print(f"---getIdComponents() {time.time() - time_start} seconds ---")
 
     async def diagnose_components(self):
-        # predicted_components_df: pd.DataFrame, drawing_type_id: str
+        """
+        Order by index asc, for both line types and line type components.
+        Loop through, check if the component exists in the predicted_components_df.
+        If yes, then add it to the found components with additional information
+        e.g. lineTypeId, group, center point, lineTypeIdNumber, checked.
+        Then remove it from the remaining components.
+
+        If no, add it to the missing components with additional information
+        e.g. name, color, key, lineTypeId, lineTypeIdNumber, lineTypeName.
+        """
         time_start = time.time()
         try:
             # database:
