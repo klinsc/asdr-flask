@@ -5,10 +5,30 @@ from collections import Counter
 
 import numpy as np
 import pandas as pd
+from pydantic import BaseModel
 from scipy.spatial import ConvexHull
 from sklearn.cluster import AgglomerativeClustering
 
 from prisma import Prisma
+
+
+class DrawingComponentsDf(BaseModel):
+    xmin: float
+    ymin: float
+    xmax: float
+    ymax: float
+    name: str
+    color: str
+    key: str
+    lineTypeId: str
+    lineTypeIdNumber: str
+    lineTypeName: str
+    group: int
+    center_x: float
+    center_y: float
+    checked: bool
+    cluster: int
+    clusterLineTypeId: str
 
 
 class HandleComponent:

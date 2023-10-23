@@ -156,6 +156,7 @@ def predict():
                 "missing_components": missing_components_json,
                 "hulls": hulls,
                 "clustered_found_components": clustered_found_components_json,
+                "status": "success",
             },
             200,
             {"Content-Type": "application/json"},
