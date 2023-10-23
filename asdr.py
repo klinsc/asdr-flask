@@ -100,12 +100,21 @@ def predict():
         if predicted_components_df is None:
             raise Exception("Error in get detail components")
 
+        # get cluster the components
+        clustered_predicted_components_df = asyncio.run(
+            component_handler.get_clustered_components()
+        )
+        if clustered_predicted_components_df is None:
+            raise Exception("Error in cluster components")
+
         # 2) diagnose the components
         (
             found_components_df,
             remaining_components_df,
             missing_components_df,
-        ) = asyncio.run(component_handler.diagnose_components())
+        ) = asyncio.run(
+            component_handler.diagnose_components(clustered_predicted_components_df)
+        )
         if (
             found_components_df is None
             or remaining_components_df is None
@@ -113,40 +122,20 @@ def predict():
         ):
             raise Exception("Error in diagnose components")
 
-        # 3) sort the line type components
-        sorted_line_type_components_df = component_handler.sort_line_type_components(
-            found_components_df
-        )
-        if sorted_line_type_components_df is None:
-            raise Exception("Error in sort line type components")
-
-        # validate that found_components_df + remaining_components_df = predicted_components_df
-        if len(predicted_components_df) != len(sorted_line_type_components_df) + len(
-            remaining_components_df
-        ):
-            raise Exception("Error in sort: found + remaining != predicted")
-
-        # 4) cluster the components
-        clustered_found_components_df = component_handler.get_clustered_components(
-            sorted_line_type_components_df
-        )
-        if clustered_found_components_df is None:
-            raise Exception("Error in cluster components")
-
-        # 5) get the hulls of the clustered components
-        hulls = asyncio.run(
-            component_handler.get_clustered_convexhull(clustered_found_components_df)
-        )
+        # # 5) get the hulls of the clustered components
+        # hulls = asyncio.run(
+        #     component_handler.get_clustered_convexhull(clustered_found_components_df)
+        # )
 
         # return all dfs to the client in json format
         predicted_components_json = predicted_components_df.to_json(orient="records")
         found_components_json = found_components_df.to_json(orient="records")
         missing_components_json = missing_components_df.to_json(orient="records")
         remaining_components_json = remaining_components_df.to_json(orient="records")
-        clustered_found_components_json = clustered_found_components_df.to_json(
-            orient="records"
-        )
-        hulls = hulls.to_json(orient="records")
+        # clustered_found_components_json = clustered_found_components_df.to_json(
+        #     orient="records"
+        # )
+        # hulls = hulls.to_json(orient="records")
 
         response = make_response(
             {
@@ -154,8 +143,8 @@ def predict():
                 "found_components": found_components_json,
                 "remaining_components": remaining_components_json,
                 "missing_components": missing_components_json,
-                "hulls": hulls,
-                "clustered_found_components": clustered_found_components_json,
+                # "hulls": hulls,
+                # "clustered_found_components": clustered_found_components_json,
                 "status": "success",
             },
             200,

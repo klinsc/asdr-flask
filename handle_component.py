@@ -43,6 +43,26 @@ class HandleComponent:
     def get_predicted_components(self):
         return self.predicted_components_df
 
+    async def get_n_clusters(self):
+        # database:
+        prisma = Prisma()
+        await prisma.connect()
+
+        # get all line types with their count in the database from the drawing type id
+        line_types = await prisma.linetype.find_many(
+            where={"drawingTypeId": self.drawing_type_id},
+            order={"index": "asc"},
+        )
+
+        n_clusters = 0
+        for line_type in line_types:
+            n_clusters += line_type.count
+
+        # close the database connection
+        await prisma.disconnect()
+
+        return n_clusters
+
     async def get_detail_components(self):
         """
         Finds in the database componentId, color,
@@ -103,17 +123,10 @@ class HandleComponent:
         finally:
             print(f"---getIdComponents() {time.time() - time_start} seconds ---")
 
-    async def diagnose_components(self):
-        """
-        Order by index asc, for both line types and line type components.
-        Loop through, check if the component exists in the predicted_components_df.
-        If yes, then add it to the found components with additional information
-        e.g. lineTypeId, group, center point, lineTypeIdNumber, checked.
-        Then remove it from the remaining components.
-
-        If no, add it to the missing components with additional information
-        e.g. name, color, key, lineTypeId, lineTypeIdNumber, lineTypeName.
-        """
+    async def diagnose_components(
+        self, clustered_predicted_components_df: pd.DataFrame
+    ):
+        """ """
         time_start = time.time()
         try:
             # database:
@@ -143,115 +156,75 @@ class HandleComponent:
             if len(line_types) == 0:
                 raise Exception("Line type not found")
 
+            # define line type components dataframe
+            line_type_components_df = pd.DataFrame(
+                columns=[
+                    "xmin",
+                    "ymin",
+                    "xmax",
+                    "ymax",
+                    "name",
+                    "color",
+                    "componentId",
+                    "lineTypeId",
+                    "lineTypeIdNumber",
+                    "lineTypeName",
+                    "cluster",
+                    "center_x",
+                    "center_y",
+                    "checked",
+                ]
+            )
+
+            # loop through all line types
+            for line_type in line_types:
+                for i in range(line_type.count):
+                    for line_type_component in line_type.LineTypeComponent:  # type: ignore
+                        for j in range(line_type_component.count):
+                            # add the line type component to the dataframe
+                            line_type_components_df = pd.concat(
+                                [
+                                    line_type_components_df,
+                                    pd.DataFrame(
+                                        {
+                                            "xmin": [None],
+                                            "ymin": [None],
+                                            "xmax": [None],
+                                            "ymax": [None],
+                                            "name": [line_type_component.Component.name],  # type: ignore
+                                            "color": [line_type_component.Component.color],  # type: ignore
+                                            "componentId": [line_type_component.Component.id],  # type: ignore
+                                            "lineTypeId": [line_type.id],
+                                            "lineTypeIdNumber": [f"{line_type.id}-{i}"],
+                                            "lineTypeName": [line_type.name],
+                                            "cluster": [None],
+                                            "center_x": [None],
+                                            "center_y": [None],
+                                            "checked": [False],
+                                        }
+                                    ),
+                                ],
+                                ignore_index=True,
+                            )
+
+            print("line_type_components_df")
+            print(line_type_components_df)
+
             # define: remaining components
-            remaining_components_df = self.predicted_components_df.copy()
+            remaining_components_df = clustered_predicted_components_df.copy()
 
             # define: missing components
-            missing_components_df = self.predicted_components_df.copy().drop(
-                self.predicted_components_df.index
+            missing_components_df = clustered_predicted_components_df.copy().drop(
+                clustered_predicted_components_df.index
             )
 
             # define: found components
-            found_components_df = self.predicted_components_df.copy().drop(
-                self.predicted_components_df.index
+            found_components_df = clustered_predicted_components_df.copy().drop(
+                clustered_predicted_components_df.index
             )
-
-            # loop through line_types to diagnose the LineTypeComponent
-            for line_type in line_types:
-                for i in range(line_type.count):
-                    # loop through the LineTypeComponents of the line type
-                    for line_type_component in line_type.LineTypeComponent:  # type: ignore
-                        for j in range(line_type_component.count):
-                            if (
-                                line_type_component.Component.name  # type: ignore
-                                in remaining_components_df["name"].values
-                            ):
-                                # get the first index of the component in the remaining components
-                                index = remaining_components_df[
-                                    remaining_components_df["name"]
-                                    == line_type_component.Component.name  # type: ignore
-                                ].index[0]
-
-                                # add the component to the found components
-                                found_components_df = pd.concat(
-                                    [
-                                        found_components_df,
-                                        remaining_components_df.loc[[index]],
-                                    ],
-                                    ignore_index=True,
-                                )
-
-                                # also add the lineTypeId to the recently found component
-                                last_index = len(found_components_df) - 1
-                                found_components_df.at[
-                                    last_index, "lineTypeId"
-                                ] = line_type_component.lineTypeId
-
-                                # also add group number to the recently found component
-                                found_components_df.at[
-                                    last_index, "group"
-                                ] = f"{line_type_component.lineTypeId}-{i}"
-
-                                # also add center point to the recently found component
-                                found_components_df.at[last_index, "center_x"] = (
-                                    found_components_df.at[last_index, "xmin"]
-                                    + found_components_df.at[last_index, "xmax"]
-                                ) / 2
-                                found_components_df.at[last_index, "center_y"] = (
-                                    found_components_df.at[last_index, "ymin"]
-                                    + found_components_df.at[last_index, "ymax"]
-                                ) / 2
-
-                                # also add lineTypeIdNumber to the recently found component, which is a combination of lineTypeId and group
-                                found_components_df.at[
-                                    last_index, "lineTypeIdNumber"
-                                ] = f"{line_type_component.lineTypeId}-{i}"
-
-                                # also add checked to the recently found component
-                                found_components_df.at[last_index, "checked"] = False
-
-                                # remove the component from the remaining components
-                                remaining_components_df.drop(index, inplace=True)
-
-                            # add the component to the missing components
-                            else:
-                                missing_components_df = pd.concat(
-                                    [
-                                        missing_components_df,
-                                        pd.DataFrame(
-                                            {
-                                                "name": [
-                                                    line_type_component.Component.name  # type: ignore
-                                                ],
-                                                "color": [
-                                                    line_type_component.Component.color  # type: ignore
-                                                ],
-                                                "key": [
-                                                    str(uuid.uuid4())[
-                                                        :8
-                                                    ]  # generate a small uuid
-                                                ],
-                                                "lineTypeId": [
-                                                    line_type_component.lineTypeId
-                                                ],
-                                                "lineTypeIdNumber": [
-                                                    f"{line_type_component.lineTypeId}-{i}"
-                                                ],
-                                                "lineTypeName": [line_type.name],
-                                            }
-                                        ),
-                                    ],
-                                    ignore_index=True,
-                                )
 
             # close the database connection
             await prisma.disconnect()
-
-            # validate that found_components_df + remaining_components_df = predicted_components_df
-            if len(self.predicted_components_df) != len(found_components_df) + len(
-                remaining_components_df
-            ):
-                raise Exception("Error in diagnose: found + remaining != predicted")
 
             return found_components_df, remaining_components_df, missing_components_df
 
@@ -448,11 +421,19 @@ class HandleComponent:
             print(e)
             return None
 
-    def get_clustered_components(
-        self, found_components_df: pd.DataFrame
-    ) -> pd.DataFrame | None:
+    async def get_clustered_components(self) -> pd.DataFrame | None:
         try:
-            clustered_found_components_df = found_components_df.copy(deep=True)
+            clustered_found_components_df = self.predicted_components_df.copy(deep=True)
+
+            # create center_x & center_y columns
+            clustered_found_components_df["center_x"] = (
+                clustered_found_components_df["xmin"]
+                + clustered_found_components_df["xmax"]
+            ) / 2
+            clustered_found_components_df["center_y"] = (
+                clustered_found_components_df["ymin"]
+                + clustered_found_components_df["ymax"]
+            ) / 2
 
             # Create a dataset from the list of found components
             posX = []
@@ -473,52 +454,18 @@ class HandleComponent:
                 [[max_distance(node1, node2) for node2 in nodes] for node1 in nodes]
             )
 
+            n_clusters = await self.get_n_clusters()
+
             # Perform clustering
             clustering = AgglomerativeClustering(
-                n_clusters=10, affinity="precomputed", linkage="average"
+                n_clusters=n_clusters,
+                affinity="precomputed",
+                linkage="average",
             )
             clustering.fit(distance_matrix)
 
-            # Get line type ids as metadata for each node
-            metadata = clustered_found_components_df["lineTypeIdNumber"].values
-
-            # Create a dictionary that maps each node to its metadata
-            node_to_metadata = {
-                tuple(node): line_type_id for node, line_type_id in zip(nodes, metadata)
-            }
-
-            # Create a mapping from cluster labels to metadata categories
-            cluster_to_metadata = {}
-
-            for label in set(clustering.labels_):
-                # Get the metadata categories for all nodes in this cluster
-                category_in_cluster = [
-                    node_to_metadata[tuple(node)]
-                    for node in nodes[clustering.labels_ == label]
-                ]
-
-                # Find the most common category
-                most_common_category = Counter(category_in_cluster).most_common(1)[0][0]
-
-                # Map the cluster label to the most common category
-                cluster_to_metadata[label] = most_common_category
-
             # add the cluster to the dataframe with normalised cluster labels (start from 0,1)
             clustered_found_components_df["cluster"] = clustering.labels_
-
-            # add the cluster metadata to the dataframe
-            clustered_found_components_df["clusterLineTypeId"] = [
-                cluster_to_metadata[cluster]
-                for cluster in clustered_found_components_df["cluster"].values
-            ]
-
-            # # add the cluster to the dataframe
-            # clustered_found_components_df["cluster"] = clustering.labels_
-
-            # /10 to normalise the cluster labels
-            clustered_found_components_df["cluster"] = (
-                clustered_found_components_df["cluster"] / 10
-            )
 
             return clustered_found_components_df
 
