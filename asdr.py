@@ -135,10 +135,6 @@ def predict():
         ):
             raise Exception("Error in sort: found + remaining != predicted")
 
-        # # get hulls
-        # hulls = getFoundComponentsConvexHull(new_found_components_df)
-        # hulls = hulls.to_json(orient="records")
-
         # 4) cluster the components
         clustered_found_components_df = component_handler.get_clustered_components(
             new_found_components_df
