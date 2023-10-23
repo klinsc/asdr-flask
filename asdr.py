@@ -1,21 +1,12 @@
 import asyncio
-import json
 import os
-import sys
 import time
-import uuid
-from collections import Counter
 from io import BytesIO
 
-import matplotlib.pyplot as plt
-import numpy as np
 import pandas as pd
 from flask import Flask, make_response, request
 from flask_cors import CORS
 from pdf2image.pdf2image import convert_from_bytes
-from PIL import Image
-from scipy.spatial import ConvexHull
-from sklearn.cluster import AgglomerativeClustering
 
 from handle_component import HandleComponent
 from handle_image import HandleImage
