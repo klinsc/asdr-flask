@@ -207,9 +207,6 @@ class HandleComponent:
                                 ignore_index=True,
                             )
 
-            print("line_type_components_df")
-            print(line_type_components_df)
-
             # define: remaining components
             remaining_components_df = clustered_predicted_components_df.copy()
 
@@ -222,6 +219,15 @@ class HandleComponent:
             found_components_df = clustered_predicted_components_df.copy().drop(
                 clustered_predicted_components_df.index
             )
+
+            # match each clustered_predicted_components_df with each line_type_components_df
+            # by comparing the name, color, componentId and number of components
+            for index, line_type_component in line_type_components_df.iterrows():
+                # get all components with the lineTypeIdNumber in line_type_components_df
+                line_type_components = line_type_components_df[
+                    line_type_components_df["lineTypeIdNumber"]
+                    == line_type_component["lineTypeIdNumber"]
+                ]
 
             # close the database connection
             await prisma.disconnect()
