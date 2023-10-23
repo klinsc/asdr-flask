@@ -114,21 +114,21 @@ def predict():
             raise Exception("Error in diagnose components")
 
         # 3) sort the line type components
-        new_found_components_df = component_handler.sort_line_type_components(
+        sorted_line_type_components_df = component_handler.sort_line_type_components(
             found_components_df
         )
-        if new_found_components_df is None:
+        if sorted_line_type_components_df is None:
             raise Exception("Error in sort line type components")
 
         # validate that found_components_df + remaining_components_df = predicted_components_df
-        if len(predicted_components_df) != len(new_found_components_df) + len(
+        if len(predicted_components_df) != len(sorted_line_type_components_df) + len(
             remaining_components_df
         ):
             raise Exception("Error in sort: found + remaining != predicted")
 
         # 4) cluster the components
         clustered_found_components_df = component_handler.get_clustered_components(
-            new_found_components_df
+            sorted_line_type_components_df
         )
         if clustered_found_components_df is None:
             raise Exception("Error in cluster components")
