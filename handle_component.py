@@ -5,6 +5,7 @@ from collections import Counter
 
 import numpy as np
 import pandas as pd
+from scipy.spatial import ConvexHull
 from sklearn.cluster import AgglomerativeClustering
 
 from prisma import Prisma
@@ -509,3 +510,171 @@ class HandleComponent:
         except Exception as e:
             print(e)
             return None
+
+    def getLineTypeConvexHull(
+        self,
+        line_type_component: pd.DataFrame,
+    ) -> tuple[list[dict[str, float]]]:
+        """
+        Returns the convex hull of the line type
+        """
+        time_start = time.time()
+        try:
+            # get center point of each line type component
+            line_type_component["center_x"] = (
+                line_type_component["xmin"] + line_type_component["xmax"]
+            ) / 2
+            line_type_component["center_y"] = (
+                line_type_component["ymin"] + line_type_component["ymax"]
+            ) / 2
+
+            # get the convex hull of the line type
+            hull = ConvexHull(line_type_component[["center_x", "center_y"]].values)
+
+            # return the convex hull as json
+            return (
+                [
+                    {
+                        "x": float(line_type_component["center_x"].values[i]),
+                        "y": float(line_type_component["center_y"].values[i]),
+                    }
+                    for i in hull.vertices
+                ],
+            )
+
+        except Exception as e:
+            print(e)
+            raise e
+
+        finally:
+            print(f"---getIdComponents() {time.time() - time_start} seconds ---")
+
+    async def getClusteredConvexHull(
+        self,
+        clustered_found_components_df: pd.DataFrame,
+    ) -> pd.DataFrame:
+        """
+        Returns the convex hull of the clustered found components
+        """
+        time_start = time.time()
+        try:
+            # group by line type id & group and generate new uuid for each group
+            groups = pd.DataFrame(
+                clustered_found_components_df.groupby(["clusterLineTypeId", "cluster"])
+                .size()
+                .reset_index()
+            )
+            groups["key"] = [str(uuid.uuid4())[:8] for i in range(len(groups))]
+
+            # create a new dataframe to store the hull of each line type id
+            hulls = pd.DataFrame(
+                columns=["lineTypeId", "points", "key", "lineTypeName"]
+            )
+
+            for index, row in groups.iterrows():
+                # get the line type components of the line type id
+                line_type_components = clustered_found_components_df[
+                    (
+                        clustered_found_components_df["clusterLineTypeId"]
+                        == row["clusterLineTypeId"]
+                    )
+                    & (clustered_found_components_df["cluster"] == row["cluster"])
+                ]
+
+                # skip for line type components length < 3
+                if len(line_type_components) < 3:
+                    continue
+
+                # get the convex hull of the line type components
+                hull = self.getLineTypeConvexHull(line_type_components)
+
+                # get the line type name from db
+                prisma = Prisma()
+                await prisma.connect()
+                line_type_id = row["clusterLineTypeId"].split("-")[0]
+                line_type = await prisma.linetype.find_first(where={"id": line_type_id})
+                if line_type == None:
+                    raise Exception("Line type not found")
+
+                # add the hull to the hulls dataframe
+                hulls = pd.concat(
+                    [
+                        hulls,
+                        pd.DataFrame(
+                            {
+                                "lineTypeId": [row["clusterLineTypeId"]],
+                                "points": [hull[0]],
+                                "key": [row["key"]],
+                                "lineTypeName": [line_type.name],
+                            }
+                        ),
+                    ],
+                    ignore_index=True,
+                )
+
+            return hulls
+
+        except Exception as e:
+            print(e)
+            raise e
+
+        finally:
+            print(f"---getIdComponents() {time.time() - time_start} seconds ---")
+
+
+# ! save for later def getFoundComponentsConvexHull(
+#     found_components_df: pd.DataFrame,
+# ) -> pd.DataFrame:
+#     """
+#     Returns the convex hull of the found components
+#     """
+#     time_start = time.time()
+#     try:
+#         print(found_components_df)
+#         # group by line type id & group and generate new uuid for each group
+#         groups = pd.DataFrame(
+#             found_components_df.groupby(["lineTypeId", "group"]).size()
+#         ).reset_index()
+#         groups["key"] = [str(uuid.uuid4())[:8] for i in range(len(groups))]
+#         print(groups)
+
+#         # create a new dataframe to store the hull of each line type id
+#         hulls = pd.DataFrame(columns=["lineTypeId", "points", "key"])
+
+#         for index, row in groups.iterrows():
+#             # get the line type components of the line type id
+#             line_type_components = found_components_df[
+#                 (found_components_df["lineTypeId"] == row["lineTypeId"])
+#                 & (found_components_df["group"] == row["group"])
+#             ]
+
+#             # skip for line type components length < 3
+#             if len(line_type_components) < 3:
+#                 continue
+
+#             # get the convex hull of the line type components
+#             hull = getLineTypeConvexHull(line_type_components)
+
+#             # add the hull to the hulls dataframe
+#             hulls = pd.concat(
+#                 [
+#                     hulls,
+#                     pd.DataFrame(
+#                         {
+#                             "lineTypeId": [row["lineTypeId"]],
+#                             "points": [hull[0]],
+#                             "key": [row["key"]],
+#                         }
+#                     ),
+#                 ],
+#                 ignore_index=True,
+#             )
+
+#         return hulls
+
+#     except Exception as e:
+#         print(e)
+#         raise e
+
+#     finally:
+#!         print(f"---getIdComponents() {time.time() - time_start} seconds ---")
