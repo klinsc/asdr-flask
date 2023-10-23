@@ -45,7 +45,9 @@ class HandleComponent:
 
     async def get_detail_components(self):
         """
-        Adds the componentId, color and key of the components to the dataframe
+        Finds in the database componentId, color,
+        and generates unique key
+        then add them to each component in the dataframe
         """
 
         time_start = time.time()
@@ -68,7 +70,7 @@ class HandleComponent:
             if len(components) == 0:
                 raise Exception("Component not found")
 
-            # # for each component in the self.predicted_components_df, check if all component names exist in components
+            # for each component in the self.predicted_components_df, check if all component names exist in components
             if not all(
                 self.predicted_components_df["name"].isin(
                     [component.name for component in components]
@@ -531,7 +533,7 @@ class HandleComponent:
             print(e)
             return None
 
-    def getLineTypeConvexHull(
+    def get_line_type_convexhull(
         self,
         line_type_component: pd.DataFrame,
     ) -> tuple[list[dict[str, float]]]:
@@ -569,7 +571,7 @@ class HandleComponent:
         finally:
             print(f"---getIdComponents() {time.time() - time_start} seconds ---")
 
-    async def getClusteredConvexHull(
+    async def get_clustered_convexhull(
         self,
         clustered_found_components_df: pd.DataFrame,
     ) -> pd.DataFrame:
@@ -606,7 +608,7 @@ class HandleComponent:
                     continue
 
                 # get the convex hull of the line type components
-                hull = self.getLineTypeConvexHull(line_type_components)
+                hull = self.get_line_type_convexhull(line_type_components)
 
                 # get the line type name from db
                 prisma = Prisma()

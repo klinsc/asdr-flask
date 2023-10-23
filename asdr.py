@@ -135,7 +135,7 @@ def predict():
 
         # 5) get the hulls of the clustered components
         hulls = asyncio.run(
-            component_handler.getClusteredConvexHull(clustered_found_components_df)
+            component_handler.get_clustered_convexhull(clustered_found_components_df)
         )
 
         # return all dfs to the client in json format
