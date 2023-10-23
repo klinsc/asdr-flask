@@ -9,15 +9,14 @@ from io import BytesIO
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from flask import Flask, after_this_request, make_response, request
+from flask import Flask, make_response, request
 from flask_cors import CORS
 from pdf2image.pdf2image import convert_from_bytes
 from PIL import Image
-from scipy.spatial import ConvexHull, Voronoi, convex_hull_plot_2d, voronoi_plot_2d
+from scipy.spatial import ConvexHull
 from sklearn.cluster import AgglomerativeClustering
 
-from drawing_tree import drawing_tree
-from prisma import Prisma  # type: ignore
+from prisma import Prisma
 from yolov5 import YoloV5
 
 os.environ["PRISMA_HOME_DIR "] = "/var/tmp"
@@ -706,6 +705,30 @@ async def getDetailComponents(drawing_components_df: pd.DataFrame):
         print(f"---getIdComponents() {time.time() - time_start} seconds ---")
 
 
+class HandleImage:
+    def __init__(self, image_byte_arr: bytearray):
+        if image_byte_arr == None:
+            raise Exception("Image byte array is required")
+
+        if not os.path.exists("./images"):
+            os.makedirs("./images")
+
+        self.image_byte_arr = image_byte_arr
+        self.image_name = f"{str(uuid.uuid4())}.jpg"
+        self.image_path = f"./images/{self.image_name}"
+        with open(self.image_path, "wb") as f:
+            f.write(self.image_byte_arr)
+
+    def remove(self):
+        os.remove(self.image_path)
+
+    def get_image_path(self):
+        return self.image_path
+
+    def get_image_name(self):
+        return self.image_name
+
+
 @app.route("/predict", methods=["POST"])
 def predict():
     start_time = time.time()
@@ -717,32 +740,22 @@ def predict():
 
         # get the images from the request
         file = request.files["files[]"]
+
         # convert the images to a byte array
-        byte_arr = file.read()
+        byte_arr: bytearray = file.read()
+        if not byte_arr:
+            return make_response("Bad Request: file is required", 400)
 
         # generate a random name for the image
-        image_name = f"{str(uuid.uuid4())}.jpg"
-
-        # check if the images folder exists
-        if not os.path.exists("./images"):
-            os.makedirs("./images")
-
-        # create the image path
-        image_path = f"./images/{image_name}"
-
-        # save image to disk
-        with open(image_path, "wb") as f:
-            f.write(byte_arr)
+        image = HandleImage(byte_arr)
+        image_path = image.get_image_path()
 
         # create a yolov5 object
         yolo = YoloV5()
-
         # predict the bounding boxes
         results = yolo.predict(image_path)
-
         # remove the image from disk
-        os.remove(image_path)
-
+        image.remove()
         # create a df from the results
         df: pd.DataFrame = results.pandas().xyxy[0]
 
@@ -825,7 +838,7 @@ def predict():
     except Exception as e:
         print(e)
 
-        return make_response("Internal Server Error", 500)
+        return make_response(f"Internal Server Error: {e}", 500)
     finally:
         print(f"---test_predict() {time.time() - start_time} seconds ---")
 
