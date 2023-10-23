@@ -188,7 +188,9 @@ class HandleComponent:
                                 ] = line_type_component.lineTypeId
 
                                 # also add group number to the recently found component
-                                found_components_df.at[last_index, "group"] = i
+                                found_components_df.at[
+                                    last_index, "group"
+                                ] = f"{line_type_component.lineTypeId}-{i}"
 
                                 # also add center point to the recently found component
                                 found_components_df.at[last_index, "center_x"] = (
