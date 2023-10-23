@@ -526,7 +526,7 @@ class HandleComponent:
             print(e)
             return None
 
-    def get_line_type_convexhull(
+    def create_convexhull(
         self,
         line_type_component: pd.DataFrame,
     ) -> tuple[list[dict[str, float]]]:
@@ -601,7 +601,7 @@ class HandleComponent:
                     continue
 
                 # get the convex hull of the line type components
-                hull = self.get_line_type_convexhull(line_type_components)
+                hull = self.create_convexhull(line_type_components)
 
                 # get the line type name from db
                 prisma = Prisma()
