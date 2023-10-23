@@ -17,6 +17,7 @@ from PIL import Image
 from scipy.spatial import ConvexHull
 from sklearn.cluster import AgglomerativeClustering
 
+from handle_component import HandleComponent
 from handle_image import HandleImage
 from prisma import Prisma
 from yolov5 import YoloV5
@@ -655,56 +656,56 @@ async def diagnose_components(
         print(f"---diagnose_components() {time.time() - time_start} seconds ---")
 
 
-async def getDetailComponents(drawing_components_df: pd.DataFrame):
-    """
-    Adds the componentId, color and key of the components to the dataframe
-    """
-    time_start = time.time()
-    try:
-        # database:
-        prisma = Prisma()
-        await prisma.connect()
+# async def getDetailComponents(drawing_components_df: pd.DataFrame):
+#     """
+#     Adds the componentId, color and key of the components to the dataframe
+#     """
+#     time_start = time.time()
+#     try:
+#         # database:
+#         prisma = Prisma()
+#         await prisma.connect()
 
-        # get all components from the database, where the ComponentVersion selected===True
-        componentversion = await prisma.componentversion.find_many(
-            where={"selected": True}
-        )
-        if len(componentversion) == 0:
-            raise Exception("Selected component version not found")
+#         # get all components from the database, where the ComponentVersion selected===True
+#         componentversion = await prisma.componentversion.find_many(
+#             where={"selected": True}
+#         )
+#         if len(componentversion) == 0:
+#             raise Exception("Selected component version not found")
 
-        # get all components from the database, where the ComponentVersion selected===True
-        components = await prisma.component.find_many(
-            where={"componentVersionId": componentversion[0].id}
-        )
-        if len(components) == 0:
-            raise Exception("Component not found")
+#         # get all components from the database, where the ComponentVersion selected===True
+#         components = await prisma.component.find_many(
+#             where={"componentVersionId": componentversion[0].id}
+#         )
+#         if len(components) == 0:
+#             raise Exception("Component not found")
 
-        # # for each component in the drawing_components_df, check if all component names exist in components
-        if not all(
-            drawing_components_df["name"].isin(
-                [component.name for component in components]
-            )
-        ):
-            raise Exception("Some components not found")
+#         # # for each component in the drawing_components_df, check if all component names exist in components
+#         if not all(
+#             drawing_components_df["name"].isin(
+#                 [component.name for component in components]
+#             )
+#         ):
+#             raise Exception("Some components not found")
 
-        for index, row in drawing_components_df.iterrows():
-            for component in components:
-                if row["name"] == component.name:
-                    drawing_components_df.at[index, "componentId"] = component.id
-                    drawing_components_df.at[index, "color"] = component.color
-                    drawing_components_df.at[index, "key"] = str(uuid.uuid4())[:8]
-                    break
+#         for index, row in drawing_components_df.iterrows():
+#             for component in components:
+#                 if row["name"] == component.name:
+#                     drawing_components_df.at[index, "componentId"] = component.id
+#                     drawing_components_df.at[index, "color"] = component.color
+#                     drawing_components_df.at[index, "key"] = str(uuid.uuid4())[:8]
+#                     break
 
-        # close the database connection
-        await prisma.disconnect()
-        return drawing_components_df
+#         # close the database connection
+#         await prisma.disconnect()
+#         return drawing_components_df
 
-    except Exception as e:
-        print(e)
-        raise e
+#     except Exception as e:
+#         print(e)
+#         raise e
 
-    finally:
-        print(f"---getIdComponents() {time.time() - time_start} seconds ---")
+#     finally:
+#         print(f"---getIdComponents() {time.time() - time_start} seconds ---")
 
 
 @app.route("/predict", methods=["POST"])
@@ -737,13 +738,10 @@ def predict():
         # create a df from the results
         df: pd.DataFrame = results.pandas().xyxy[0]
 
-        # copy from df to predicted_components_df with index
-        predicted_components_df = df.copy(deep=True).reset_index()
-
         # add column id & color to drawing_components_df with value of id & color from database
-        predicted_components_df = asyncio.run(
-            getDetailComponents(predicted_components_df)
-        )
+        predicted_components_df = asyncio.run(HandleComponent(df).getDetailComponents())
+        if predicted_components_df is None:
+            raise Exception("Error in get detail components")
 
         # diagnose the components
         (
