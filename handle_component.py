@@ -19,7 +19,7 @@ class HandleComponent:
     def get_predicted_components(self):
         return self.predicted_components_df
 
-    async def getDetailComponents(self):
+    async def get_detail_components(self):
         """
         Adds the componentId, color and key of the components to the dataframe
         """
@@ -224,3 +224,207 @@ class HandleComponent:
 
         finally:
             print(f"---diagnose_components() {time.time() - time_start} seconds ---")
+
+    def sort_line_type_components(self, found_components_df: pd.DataFrame):
+        # algorithm to swap closest points to correct the group
+        # 1. pick one line type id
+        # 2. pick one node from the line type id that "checked"===false
+        # 3. get the next node from the line type id
+        # 4. get the closest node from all other line type ids inlcuding the current line type id
+        # 5. mark the node "checked"=true, and if found, swap the next node with the closest node, go to step 2
+
+        try:
+            # create a new dataframe to store the sorted line type components
+            sorted_line_type_components_df = found_components_df.copy(deep=True)
+
+            # get all line type ids
+            line_type_ids = sorted_line_type_components_df["lineTypeId"].unique()
+
+            # loop through all line type ids
+            for line_type_id in line_type_ids:
+                # get all line type components of the line type id
+                line_type_components_df = sorted_line_type_components_df[
+                    sorted_line_type_components_df["lineTypeId"] == line_type_id
+                ]
+
+                # get all unique groups of the line type id
+                groups = line_type_components_df["group"].unique()
+
+                # loop through all groups
+                for group in groups:
+                    # get all line type components of the group
+                    group_df = line_type_components_df[
+                        line_type_components_df["group"] == group
+                    ]
+
+                    # mark first node checked
+                    sorted_line_type_components_df.at[
+                        sorted_line_type_components_df[
+                            sorted_line_type_components_df["key"]
+                            == group_df.iloc[0]["key"]
+                        ].index[0],
+                        "checked",
+                    ] = True
+
+                    # get all line type components of the line type id
+                    line_type_components_df = sorted_line_type_components_df[
+                        sorted_line_type_components_df["lineTypeId"] == line_type_id
+                    ]
+
+                    # get all line type components of the group
+                    group_df = line_type_components_df[
+                        line_type_components_df["group"] == group
+                    ]
+
+                    # while there are still unchecked line type components in the group
+                    while len(group_df[group_df["checked"] == False]) > 0:
+                        # print the group
+                        print(group_df)
+
+                        # get the last checked node as pillar
+                        pillars = group_df[group_df["checked"] == True]
+                        if len(pillars) == 0:
+                            continue
+                        pillar = pillars.iloc[-1]
+
+                        # get the next node that is not checked
+                        next_nodes = group_df[group_df["checked"] == False]
+                        if len(next_nodes) == 0:
+                            continue
+                        next_node = next_nodes.iloc[0]
+
+                        # with the same node name, get the closest node from current and all other line type components
+                        closest_nodes = sorted_line_type_components_df[
+                            (
+                                sorted_line_type_components_df["name"]
+                                == next_node["name"]
+                            )
+                            & (sorted_line_type_components_df["checked"] == False)
+                        ]
+
+                        # if there is no closest node, then skip
+                        if len(closest_nodes) == 0:
+                            continue
+
+                        # calculate the distance between the pillar and the closest node
+                        closest_nodes["distance"] = (
+                            (closest_nodes["center_x"] - pillar["center_x"]) ** 2
+                            + (closest_nodes["center_y"] - pillar["center_y"]) ** 2
+                        ) ** 0.5
+
+                        # get the closest node to the pillar
+                        closest_node = closest_nodes.iloc[
+                            closest_nodes["distance"].argmin()
+                        ]
+                        if (
+                            closest_node is None
+                            or (closest_node["key"] == next_node["key"])
+                            # or (
+                            #     closest_node["lineTypeId"] == next_node["lineTypeId"]
+                            #     and closest_node["group"] == next_node["group"]
+                            # )
+                        ):
+                            # mark the next node checked
+                            sorted_line_type_components_df.at[
+                                sorted_line_type_components_df[
+                                    sorted_line_type_components_df["key"]
+                                    == next_node.key
+                                ].index[0],
+                                "checked",
+                            ] = True
+
+                            # get all line type components of the line type id
+                            line_type_components_df = sorted_line_type_components_df[
+                                sorted_line_type_components_df["lineTypeId"]
+                                == line_type_id
+                            ]
+                            # get all line type components of the group
+                            group_df = line_type_components_df[
+                                line_type_components_df["group"] == group
+                            ]
+
+                            continue
+
+                        # swap the next node with the closest node
+                        # xmin, ymin, xmax, ymax, center_x, center_y, lineTypeId, group
+                        # print(
+                        #     "old_next_node",
+                        #     sorted_line_type_components_df.at[next_node.key],
+                        # )
+                        # print(
+                        #     "old_closest_node",
+                        #     sorted_line_type_components_df.at[closest_node.key],
+                        # )
+
+                        swaps = [
+                            "xmin",
+                            "ymin",
+                            "xmax",
+                            "ymax",
+                            "center_x",
+                            "center_y",
+                        ]
+                        for swap in swaps:
+                            old_next_node_value = sorted_line_type_components_df.loc[
+                                sorted_line_type_components_df[
+                                    sorted_line_type_components_df["key"]
+                                    == next_node["key"]
+                                ].index[0],
+                                swap,
+                            ]
+                            old_closest_node_value = sorted_line_type_components_df.loc[
+                                sorted_line_type_components_df[
+                                    sorted_line_type_components_df["key"]
+                                    == closest_node["key"]
+                                ].index[0],
+                                swap,
+                            ]
+
+                            sorted_line_type_components_df.loc[
+                                sorted_line_type_components_df[
+                                    sorted_line_type_components_df["key"]
+                                    == next_node["key"]
+                                ].index[0],
+                                swap,
+                            ] = old_closest_node_value
+                            sorted_line_type_components_df.loc[
+                                sorted_line_type_components_df[
+                                    sorted_line_type_components_df["key"]
+                                    == closest_node["key"]
+                                ].index[0],
+                                swap,
+                            ] = old_next_node_value
+
+                        # print(
+                        #     "new_next_node",
+                        #     sorted_line_type_components_df.at[next_node.key],
+                        # )
+                        # print(
+                        #     "new_closest_node",
+                        #     sorted_line_type_components_df.at[closest_node.key],
+                        # )
+
+                        # mark the next node checked
+                        sorted_line_type_components_df.at[
+                            sorted_line_type_components_df[
+                                sorted_line_type_components_df["key"] == next_node.key
+                            ].index[0],
+                            "checked",
+                        ] = True
+
+                        # get all line type components of the line type id
+                        line_type_components_df = sorted_line_type_components_df[
+                            sorted_line_type_components_df["lineTypeId"] == line_type_id
+                        ]
+                        # get all line type components of the group
+                        group_df = line_type_components_df[
+                            line_type_components_df["group"] == group
+                        ]
+
+                        continue
+
+            return sorted_line_type_components_df
+
+        except Exception as e:
+            print(e)
+            return None
