@@ -263,12 +263,14 @@ class HandleComponent:
             print(f"---diagnose_components() {time.time() - time_start} seconds ---")
 
     def sort_line_type_components(self, found_components_df: pd.DataFrame):
-        # algorithm to swap closest points to correct the group
-        # 1. pick one line type id
-        # 2. pick one node from the line type id that "checked"===false
-        # 3. get the next node from the line type id
-        # 4. get the closest node from all other line type ids inlcuding the current line type id
-        # 5. mark the node "checked"=true, and if found, swap the next node with the closest node, go to step 2
+        """
+        Sorts the line type components by swapping the closest nodes
+        1. pick one line type id
+        2. pick one node(line type component) from the line type id that "checked"===false
+        3. get the next node of that node
+        4. get the closest node from all other line type ids inlcuding the current line type id
+        5. mark the node "checked"=true, and if found, swap the next node with the closest node, go to step 2
+        """
 
         try:
             # create a new dataframe to store the sorted line type components
@@ -382,17 +384,6 @@ class HandleComponent:
 
                             continue
 
-                        # swap the next node with the closest node
-                        # xmin, ymin, xmax, ymax, center_x, center_y, lineTypeId, group
-                        # print(
-                        #     "old_next_node",
-                        #     sorted_line_type_components_df.at[next_node.key],
-                        # )
-                        # print(
-                        #     "old_closest_node",
-                        #     sorted_line_type_components_df.at[closest_node.key],
-                        # )
-
                         swaps = [
                             "xmin",
                             "ymin",
@@ -431,15 +422,6 @@ class HandleComponent:
                                 ].index[0],
                                 swap,
                             ] = old_next_node_value
-
-                        # print(
-                        #     "new_next_node",
-                        #     sorted_line_type_components_df.at[next_node.key],
-                        # )
-                        # print(
-                        #     "new_closest_node",
-                        #     sorted_line_type_components_df.at[closest_node.key],
-                        # )
 
                         # mark the next node checked
                         sorted_line_type_components_df.at[
