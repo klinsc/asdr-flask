@@ -209,6 +209,7 @@ class HandleComponent:
 
             # define: remaining components
             remaining_components_df = clustered_predicted_components_df.copy()
+            clusters = remaining_components_df["cluster"].unique()
 
             # define: missing components
             missing_components_df = clustered_predicted_components_df.copy().drop(
@@ -228,6 +229,32 @@ class HandleComponent:
                     line_type_components_df["lineTypeIdNumber"]
                     == line_type_component["lineTypeIdNumber"]
                 ]
+
+                # find the best match in remaining_components_df
+                # define cluster score with array of 0
+                cluster_point = np.zeros(len(clusters))
+                for cluster in clusters:
+                    cluster_components = remaining_components_df[
+                        remaining_components_df["cluster"] == cluster
+                    ]
+
+                    for index, cluster_component in cluster_components.iterrows():
+                        if line_type_component["name"] == cluster_component["name"]:
+                            cluster_point[cluster] += 1
+
+                # get the cluster with the highest score
+                cluster = cluster_point.argmax()
+
+                # assign line type id to clustered_predicted_components_df
+                clustered_predicted_components_df.at[
+                    clustered_predicted_components_df[
+                        clustered_predicted_components_df["cluster"] == cluster
+                    ].index[0],
+                    "clusterLineTypeId",
+                ] = line_type_component["lineTypeIdNumber"]
+
+            # print full clustered_predicted_components_df
+            print(clustered_predicted_components_df)
 
             # close the database connection
             await prisma.disconnect()
@@ -472,6 +499,40 @@ class HandleComponent:
 
             # add the cluster to the dataframe with normalised cluster labels (start from 0,1)
             clustered_found_components_df["cluster"] = clustering.labels_
+
+            # rearrange the cluster by total number of components in each cluster
+            # start from the cluster with smallest number of components
+            # to the cluster with largest number of componentsq
+            # get the number of components in each cluster
+            cluster_counts = Counter(clustered_found_components_df["cluster"])
+            # sort the cluster by number of components
+            sorted_cluster_counts = sorted(
+                cluster_counts.items(), key=lambda x: x[1], reverse=False
+            )
+            # create a new dataframe to store the rearranged cluster
+            clustered_found_components_df_rearranged = pd.DataFrame(
+                columns=clustered_found_components_df.columns
+            )
+            # loop through all clusters
+            for cluster in sorted_cluster_counts:
+                # get all components of the cluster
+                cluster_df = clustered_found_components_df[
+                    clustered_found_components_df["cluster"] == cluster[0]
+                ]
+                # add the cluster to the dataframe
+                clustered_found_components_df_rearranged = pd.concat(
+                    [
+                        clustered_found_components_df_rearranged,
+                        cluster_df,
+                    ],
+                    ignore_index=True,
+                )
+
+            # add the rearranged cluster to the dataframe
+            clustered_found_components_df = clustered_found_components_df_rearranged
+
+            print(clustered_found_components_df.head())
+            print(clustered_found_components_df.tail())
 
             return clustered_found_components_df
 
