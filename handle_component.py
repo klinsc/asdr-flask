@@ -207,6 +207,11 @@ class HandleComponent:
                                     last_index, "lineTypeIdNumber"
                                 ] = f"{line_type_component.lineTypeId}-{i}"
 
+                                # add lineTypeName
+                                found_components_df.at[
+                                    last_index, "lineTypeName"
+                                ] = line_type.name
+
                                 # also add checked to the recently found component
                                 found_components_df.at[last_index, "checked"] = False
 
@@ -238,6 +243,7 @@ class HandleComponent:
                                                     f"{line_type_component.lineTypeId}-{i}"
                                                 ],
                                                 "lineTypeName": [line_type.name],
+                                                "checked": [False],
                                             }
                                         ),
                                     ],
@@ -583,7 +589,7 @@ class HandleComponent:
 
             # create a new dataframe to store the hull of each line type id
             hulls = pd.DataFrame(
-                columns=["lineTypeId", "points", "key", "lineTypeName"]
+                columns=["clusterLineTypeId", "points", "key", "clusterLineTypeName"]
             )
 
             for index, row in groups.iterrows():
@@ -617,10 +623,10 @@ class HandleComponent:
                         hulls,
                         pd.DataFrame(
                             {
-                                "lineTypeId": [row["clusterLineTypeId"]],
+                                "clusterLineTypeId": [row["clusterLineTypeId"]],
                                 "points": [hull[0]],
                                 "key": [row["key"]],
-                                "lineTypeName": [line_type.name],
+                                "clusterLineTypeName": [line_type.name],
                             }
                         ),
                     ],
@@ -628,6 +634,102 @@ class HandleComponent:
                 )
 
             return hulls
+
+        except Exception as e:
+            print(e)
+            raise e
+
+        finally:
+            print(f"---getIdComponents() {time.time() - time_start} seconds ---")
+
+    async def correct_missing_component(
+        self,
+        clustered_found_components_df: pd.DataFrame,
+        missing_components_df: pd.DataFrame,
+        clustered_hulls: pd.DataFrame,
+    ):
+        """
+        For each component in found_components_df
+            If a component is not in its clusterConvexHull
+                If the component is in missing_component_df
+        """
+        time_start = time.time()
+        try:
+            for (
+                i,
+                clustered_found_component,
+            ) in clustered_found_components_df.iterrows():
+                # get found component cluster id
+                found_component_cluster_id = clustered_found_component[
+                    "clusterLineTypeId"
+                ]
+                # get found component cluster convex hull
+                cluster_hull = clustered_hulls[
+                    clustered_hulls["clusterLineTypeId"] == found_component_cluster_id
+                ]
+
+                # if the cluster convex hull is empty, then skip
+                if len(cluster_hull) == 0:
+                    continue
+
+                # if the component is in the cluster convex hull, then skip
+                if any(
+                    [
+                        clustered_found_component["center_x"] == point["x"]
+                        and clustered_found_component["center_y"] == point["y"]
+                        for point in cluster_hull["points"].values[0]
+                    ]
+                ):
+                    continue
+
+                print(f"found_component: {clustered_found_component}")
+
+                clustered_found_component_name = clustered_found_component["name"]
+
+                # if the component name is in the missing components that checked==False, then correct it
+                if (
+                    clustered_found_component_name
+                    in missing_components_df[
+                        (missing_components_df["checked"] == False)
+                    ]["name"].values
+                ):
+                    print(
+                        f"missing_component: {missing_components_df[missing_components_df['name'] == clustered_found_component_name]}"
+                    )
+                    # change missing component line type id to found component line type id
+                    missing_components_df.at[
+                        missing_components_df[
+                            missing_components_df["name"]
+                            == clustered_found_component_name
+                        ].index[0],
+                        "lineTypeId",
+                    ] = clustered_found_component["lineTypeId"]
+                    # change missing component line type id number to found component line type id number
+                    missing_components_df.at[
+                        missing_components_df[
+                            missing_components_df["name"]
+                            == clustered_found_component_name
+                        ].index[0],
+                        "lineTypeIdNumber",
+                    ] = clustered_found_component["lineTypeIdNumber"]
+                    # change missing component line type name to found component line type name
+                    missing_components_df.at[
+                        missing_components_df[
+                            missing_components_df["name"]
+                            == clustered_found_component_name
+                        ].index[0],
+                        "lineTypeName",
+                    ] = clustered_found_component["lineTypeName"]
+                    # checked to true
+                    missing_components_df.at[
+                        missing_components_df[
+                            missing_components_df["name"]
+                            == clustered_found_component_name
+                        ].index[0],
+                        "checked",
+                    ] = True
+
+            return missing_components_df
 
         except Exception as e:
             print(e)
