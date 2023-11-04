@@ -5,6 +5,8 @@ from collections import Counter
 
 import numpy as np
 import pandas as pd
+from matplotlib import colors
+from matplotlib import pyplot as plt
 from pydantic import BaseModel
 from scipy.spatial import ConvexHull
 from sklearn.cluster import AgglomerativeClustering
@@ -91,6 +93,14 @@ class HandleComponent:
                             uuid.uuid4()
                         )[:8]
                         break
+
+            # get new color from nipy_spectral cmap in range 10% to 90%
+            cmap = plt.cm.get_cmap("nipy_spectral", len(components))
+            for index, row in self.predicted_components_df.iterrows():
+                if row["color"] == None:
+                    self.predicted_components_df.at[index, "color"] = colors.to_hex(
+                        cmap(index / len(components))  # type: ignore
+                    )
 
             # close the database connection
             await prisma.disconnect()
