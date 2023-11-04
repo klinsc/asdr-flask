@@ -7,10 +7,12 @@ import torch
 class YoloV5:
     def __init__(self):
         try:
-            # self.file_name = "best_423fee3d1ee649bfa9e353184b4b3ddb.pt" # 150e minClass100
             self.file_name = (
-                "best_76d22b15ff974b95b731903c56d73c64.pt"  # 60e minClass500
+                "best_423fee3d1ee649bfa9e353184b4b3ddb.pt"  # 150e minClass100
             )
+            # self.file_name = (
+            #     "best_76d22b15ff974b95b731903c56d73c64.pt"  # 60e minClass500
+            # )
 
             assert self.file_name in os.listdir("./models"), "Model not found"
 
