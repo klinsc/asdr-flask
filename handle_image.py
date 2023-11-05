@@ -11,7 +11,7 @@ class HandleImage:
             os.makedirs("./images")
 
         self.image_byte_arr = image_byte_arr
-        self.image_name = f"{str(uuid.uuid4())}.jpg"
+        self.image_name = f"{str(uuid.uuid4())[:8]}.jpg"
         self.image_path = f"./images/{self.image_name}"
         with open(self.image_path, "wb") as f:
             f.write(self.image_byte_arr)
