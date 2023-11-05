@@ -33,11 +33,36 @@ class YoloV5:
             print(e)
             raise Exception(e)
 
+    def is_locked(self, filepath):
+        locked = None
+        file_object = None
+        if os.path.exists(filepath):
+            try:
+                buffer_size = 8
+                # Opening file in append mode and read the first 8 characters.
+                file_object = open(filepath, "a", buffer_size)
+                if file_object:
+                    locked = False
+            except IOError as message:
+                locked = True
+            finally:
+                if file_object:
+                    file_object.close()
+        return locked
+
+    def wait_for_file(self, filepath):
+        wait_time = 1
+        while self.is_locked(filepath):
+            time.sleep(wait_time)
+
     # Function to predict the bounding boxes
     def predict(self, image_path=None, size=1280):
         start_time = time.time()
         try:
             assert image_path is not None, "An image not provided"
+
+            # Wait for file to be unlocked
+            self.wait_for_file(image_path)
 
             # Inference
             results = self.model(image_path, size=size)
