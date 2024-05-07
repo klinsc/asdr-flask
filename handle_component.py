@@ -467,6 +467,9 @@ class HandleComponent:
     def get_clustered_components(
         self, found_components_df: pd.DataFrame
     ) -> pd.DataFrame | None:
+        """
+        Clusters the found components into groups
+        """
         try:
             clustered_found_components_df = found_components_df.copy(deep=True)
 
@@ -662,6 +665,7 @@ class HandleComponent:
         For each component in found_components_df
             If a component is not in its clusterConvexHull
                 If the component is in missing_component_df
+                    Then correct it (change line type id, line type id number, line type name, checked)
         """
         time_start = time.time()
         try:
