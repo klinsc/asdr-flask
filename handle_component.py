@@ -83,12 +83,12 @@ class HandleComponent:
             for index, row in self.predicted_components_df.iterrows():
                 for component in components:
                     if row["name"] == component.name:
-                        self.predicted_components_df.at[
-                            index, "componentId"
-                        ] = component.id
-                        self.predicted_components_df.at[
-                            index, "color"
-                        ] = component.color
+                        self.predicted_components_df.at[index, "componentId"] = (
+                            component.id
+                        )
+                        self.predicted_components_df.at[index, "color"] = (
+                            component.color
+                        )
                         self.predicted_components_df.at[index, "key"] = str(
                             uuid.uuid4()
                         )[:8]
@@ -193,14 +193,14 @@ class HandleComponent:
 
                                 # also add the lineTypeId to the recently found component
                                 last_index = len(found_components_df) - 1
-                                found_components_df.at[
-                                    last_index, "lineTypeId"
-                                ] = line_type_component.lineTypeId
+                                found_components_df.at[last_index, "lineTypeId"] = (
+                                    line_type_component.lineTypeId
+                                )
 
                                 # also add group number to the recently found component
-                                found_components_df.at[
-                                    last_index, "group"
-                                ] = f"{line_type_component.lineTypeId}-{i}"
+                                found_components_df.at[last_index, "group"] = (
+                                    f"{line_type_component.lineTypeId}-{i}"
+                                )
 
                                 # also add center point to the recently found component
                                 found_components_df.at[last_index, "center_x"] = (
@@ -218,9 +218,9 @@ class HandleComponent:
                                 ] = f"{line_type_component.lineTypeId}-{i}"
 
                                 # add lineTypeName
-                                found_components_df.at[
-                                    last_index, "lineTypeName"
-                                ] = line_type.name
+                                found_components_df.at[last_index, "lineTypeName"] = (
+                                    line_type.name
+                                )
 
                                 # also add checked to the recently found component
                                 found_components_df.at[last_index, "checked"] = False
@@ -662,7 +662,7 @@ class HandleComponent:
         clustered_hulls: pd.DataFrame,
     ):
         """
-        For each component in found_components_df
+        For each component in clustered_found_components_df
             If a component is not in its clusterConvexHull
                 If the component is in missing_component_df
                     Then correct it (change line type id, line type id number, line type name, checked)
@@ -701,7 +701,7 @@ class HandleComponent:
                 clustered_found_component_name = clustered_found_component["name"]
 
                 # if the component name is in the missing components that checked==False, then correct it
-                if (
+                if len(missing_components_df) > 0 and (
                     clustered_found_component_name
                     in missing_components_df[
                         (missing_components_df["checked"] == False)
