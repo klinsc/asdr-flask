@@ -47,20 +47,34 @@ def upload():
         file = request.files["files[]"]
         # convert the pdf file to images
         images = convert_from_bytes(file.read(), dpi=300, fmt="jpeg")
-        # create a buffer to store the images
-        buffer = BytesIO()
-        # save the images to the buffer
-        images[0].save(buffer, format="JPEG")
-        # get the buffer as a byte array
-        byte_arr = buffer.getvalue()
-
-        # return images to the client
-        return make_response(byte_arr, 200, {"Content-Type": "image/jpeg"})
+        # save the images to disk
+        image = images[0]
+        image.save(f"images/image.jpeg", "JPEG")
 
     except Exception as e:
         print(e)
 
-        return make_response("Internal Server Error", 500)
+        return make_response(f"Internal Server Error: {e}", 500)
+
+    try:
+        # read the image from disk
+        image = None
+        with open("images/image.jpeg", "rb") as f:
+            image = f.read()
+
+        if not image:
+            return make_response("Internal Server Error: image not found", 500)
+
+        # remove the image from disk
+        os.remove("images/image.jpeg")
+
+        # return images to the client
+        return make_response(image, 200, {"Content-Type": "image/jpeg"})
+
+    except Exception as e:
+        print(e)
+
+        return make_response(f"Internal Server Error: {e}", 500)
 
 
 @app.route("/predict", methods=["POST"])
