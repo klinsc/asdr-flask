@@ -166,6 +166,11 @@ class HandleComponent:
                 self.predicted_components_df.index
             )
 
+            # # debug : save all components to csv
+            # found_components_df.to_csv("temp/found_components.csv")
+            # remaining_components_df.to_csv("temp/remaining_components.csv")
+            # missing_components_df.to_csv("temp/missing_components.csv")
+
             # loop through line_types to diagnose the LineTypeComponent
             for line_type in line_types:
                 for i in range(line_type.count):
@@ -268,6 +273,11 @@ class HandleComponent:
                 remaining_components_df
             ):
                 raise Exception("Error in diagnose: found + remaining != predicted")
+
+            # # debug : save all components to csv
+            # found_components_df.to_csv("temp/found_components.csv")
+            # remaining_components_df.to_csv("temp/remaining_components.csv")
+            # missing_components_df.to_csv("temp/missing_components.csv")
 
             return found_components_df, remaining_components_df, missing_components_df
 
