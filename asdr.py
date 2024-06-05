@@ -153,8 +153,8 @@ def predict():
             raise Exception("Error in sort: found + remaining != predicted")
 
         # 4) cluster the components
-        clustered_found_components_df = component_handler.get_clustered_components(
-            sorted_line_type_components_df
+        clustered_found_components_df = asyncio.run(
+            component_handler.get_clustered_components(found_components_df)
         )
         if clustered_found_components_df is None:
             raise Exception("Error in cluster components")

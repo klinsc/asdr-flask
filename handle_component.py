@@ -474,7 +474,7 @@ class HandleComponent:
             print(e)
             return None
 
-    def get_clustered_components(
+    async def get_clustered_components(
         self, found_components_df: pd.DataFrame
     ) -> pd.DataFrame | None:
         """
@@ -502,9 +502,20 @@ class HandleComponent:
                 [[max_distance(node1, node2) for node2 in nodes] for node1 in nodes]
             )
 
+            # get line types of this drawingType
+            # database:
+            prisma = Prisma()
+            await prisma.connect()
+            lineTypes = await prisma.linetype.find_many(
+                where={"drawingTypeId": self.drawing_type_id}
+            )
+
+            # n_clusters is the number of line types * its count
+            n_clusters = sum([lineType.count for lineType in lineTypes])
+
             # Perform clustering
             clustering = AgglomerativeClustering(
-                n_clusters=10, affinity="precomputed", linkage="average"
+                n_clusters, affinity="precomputed", linkage="average"
             )
             clustering.fit(distance_matrix)
 
@@ -548,6 +559,9 @@ class HandleComponent:
             clustered_found_components_df["cluster"] = (
                 clustered_found_components_df["cluster"] / 10
             )
+
+            # close the database connection
+            await prisma.disconnect()
 
             return clustered_found_components_df
 
