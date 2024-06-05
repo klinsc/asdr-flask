@@ -44,7 +44,7 @@ async def health():
 def upload():
     try:
         # get the pdf file from the request
-        file = request.files["files[]"]
+        file = request.files["image"]
         # convert the pdf file to images
         images = convert_from_bytes(file.read(), dpi=300, fmt="jpeg")
         # save the images to disk
@@ -87,7 +87,7 @@ def predict():
             return make_response("Bad Request: drawingTypeId is required", 400)
 
         # get the images from the request
-        file = request.files["files[]"]
+        file = request.files["image"]
 
         # convert the images to a byte array
         byte_arr: bytearray = file.read()
