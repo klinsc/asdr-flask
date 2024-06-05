@@ -160,3 +160,4 @@ postgres-data/
 
 # misc
 temp/
+outputs/
