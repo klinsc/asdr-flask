@@ -6,7 +6,7 @@
   "configurations": [
     {
       "name": "asdr.py",
-      "type": "python",
+      "type": "debugpy",
       "request": "launch",
       "program": "asdr.py",
       "console": "integratedTerminal",
@@ -14,11 +14,20 @@
     },
     {
       "name": "test.py",
-      "type": "python",
+      "type": "debugpy",
       "request": "launch",
       "program": "${workspaceFolder}/test.py",
       "console": "integratedTerminal",
       "justMyCode": true
+    },
+    {
+      "name": "inference-ASDR",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "inference.py",
+      "console": "integratedTerminal",
+      "justMyCode": true,
+      "args": "--threshold=0.5 --config=configs/${config:MMYOLO_CONFIG}.py --checkpoint models/${config:MMYOLO_MODEL}.pth --image=${config:MMYOLO_IMAGE}"
     }
   ]
 }
