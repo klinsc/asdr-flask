@@ -4,7 +4,7 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "mysql"
   url      = env("DATABASE_URL")
 }
 
@@ -30,6 +30,7 @@ model Account {
   user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([provider, providerAccountId])
+  @@index([userId], map: "Account_userId_fkey")
 }
 
 model Session {
@@ -38,6 +39,8 @@ model Session {
   userId       String
   expires      DateTime
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId], map: "Session_userId_fkey")
 }
 
 model User {
@@ -98,6 +101,9 @@ model Component {
   Part               Part                @relation(fields: [partId], references: [id])
   DrawingComponent   DrawingComponent[]
   LineTypeComponent  LineTypeComponent[]
+
+  @@index([componentVersionId], map: "Component_componentVersionId_fkey")
+  @@index([partId], map: "Component_partId_fkey")
 }
 
 /// Line type
@@ -105,13 +111,15 @@ model LineType {
   id                String              @id @default(cuid())
   createdAt         DateTime            @default(now())
   updatedAt         DateTime            @updatedAt
+  index             Int
   name              String
   description       String?
-  drawingTypeId     String
-  index             Int
   count             Int                 @default(1)
+  drawingTypeId     String
   drawingType       DrawingType         @relation(fields: [drawingTypeId], references: [id])
   LineTypeComponent LineTypeComponent[]
+
+  @@index([drawingTypeId], map: "LineType_drawingTypeId_fkey")
 }
 
 /// Drawing (temp.)
@@ -124,6 +132,8 @@ model Drawing {
   drawingTypeId    String
   drawingType      DrawingType        @relation(fields: [drawingTypeId], references: [id])
   DrawingComponent DrawingComponent[]
+
+  @@index([drawingTypeId], map: "Drawing_drawingTypeId_fkey")
 }
 
 /// Drawing component (temp.)
@@ -136,6 +146,9 @@ model DrawingComponent {
   count       Int
   component   Component @relation(fields: [componentId], references: [id])
   drawing     Drawing   @relation(fields: [drawingId], references: [id])
+
+  @@index([componentId], map: "DrawingComponent_componentId_fkey")
+  @@index([drawingId], map: "DrawingComponent_drawingId_fkey")
 }
 
 model ComponentVersion {
@@ -143,8 +156,8 @@ model ComponentVersion {
   createdAt   DateTime    @default(now())
   updatedAt   DateTime
   name        String
-  description String?
   emoji       String
+  description String?
   selected    Boolean     @default(false)
   Component   Component[]
 }
@@ -153,13 +166,16 @@ model LineTypeComponent {
   id            String        @id
   createdAt     DateTime      @default(now())
   updatedAt     DateTime
-  lineTypeId    String
-  componentId   String
   componentType ComponentType @default(mandatory)
   count         Int           @default(1)
+  lineTypeId    String
+  componentId   String
   index         Int
   Component     Component     @relation(fields: [componentId], references: [id])
   LineType      LineType      @relation(fields: [lineTypeId], references: [id])
+
+  @@index([componentId], map: "LineTypeComponent_componentId_fkey")
+  @@index([lineTypeId], map: "LineTypeComponent_lineTypeId_fkey")
 }
 
 model Part {
