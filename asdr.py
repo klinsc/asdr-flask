@@ -10,8 +10,11 @@ from pdf2image.pdf2image import convert_from_bytes
 
 from handle_component import HandleComponent
 from handle_image import HandleImage
+from inference import InferenceMMDet
 from prisma import Prisma
-from yolov5 import YoloV5
+
+# *deprecated
+# from yolov5 import YoloV5
 
 os.environ["PRISMA_HOME_DIR "] = "/var/tmp"
 os.environ["PRISMA_BINARY_CACHE_DIR"] = "/var/tmp"
@@ -98,14 +101,23 @@ def predict():
         image = HandleImage(byte_arr)
         image_path = image.get_image_path()
 
+        # *deprecated
         # create a yolov5 object
-        yolo = YoloV5()
+        # yolo = YoloV5()
+        # results = yolo.predict(image_path)
+        # create a df from the results
+        # df: pd.DataFrame = results.pandas().xyxy[0]
+
+        # create a mmdet object
+        config_path = "configs/yolov5_s-p6-v62_syncbn_fast_4xb8-300e_asdr6-3-1000oa-split8020_1280_anchOptm_oPipe.py"
+        checkpoint_path = "checkpoints/yolov5_s-p6-v62_syncbn_fast_4xb8-300e_asdr6-3-1000oa-split8020_1280_anchOptm_oPipe.pth"
+        model = InferenceMMDet(config_path, checkpoint_path)
+
         # predict the bounding boxes
-        results = yolo.predict(image_path)
+        df = model.inference(image_path)
+
         # remove the image from disk
         image.remove()
-        # create a df from the results
-        df: pd.DataFrame = results.pandas().xyxy[0]
 
         # create a component handler
         component_handler = HandleComponent(df, drawing_type_id)
