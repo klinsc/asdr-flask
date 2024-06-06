@@ -1,11 +1,13 @@
 # Description: inference for asdr, take config, checkpoint, image as input, return result
 
 import os
+import uuid
 
 import mmcv
 import pandas as pd
 import torch
 from matplotlib import pyplot as plt
+from matplotlib.patches import Rectangle
 from mmdet.apis import inference_detector, init_detector
 from mmdet.registry import VISUALIZERS
 
@@ -52,9 +54,14 @@ class InferenceMMDet:
                     "ymin": bbox_result[:, 1],
                     "xmax": bbox_result[:, 2],
                     "ymax": bbox_result[:, 3],
+                    "x_center": (bbox_result[:, 0] + bbox_result[:, 2]) / 2,
+                    "y_center": (bbox_result[:, 1] + bbox_result[:, 3]) / 2,
                     # use "confidence" instead of "score" to implement with asdr-flask
                     "confidence": score_result,
                     "class": label_result,
+                    "predicted_id": [
+                        str(uuid.uuid4())[:8] for _ in range(len(bbox_result))
+                    ],
                 }
             )
             class_names = self.model.dataset_meta["classes"]  # type: ignore
@@ -64,6 +71,98 @@ class InferenceMMDet:
 
             # filter with score > 0.5
             dataframe_result = dataframe_result[dataframe_result["confidence"] > 0.5]
+
+            # if components are reside in the same area, overlap percentage > 0.5
+            # with the same name, then they are the same component
+            # remove the duplicate components, keep the first one that has the highest confidence
+            remaining_components_df = dataframe_result.sort_values(
+                by=["xmin", "ymin", "xmax", "ymax", "name"],
+                ascending=[True, True, False, False, False],
+            )
+            # find overlapping components
+            overlapping_components = []
+            for i in range(len(remaining_components_df)):
+                for j in range(i + 1, len(remaining_components_df)):
+                    # if the two components are the same
+                    if (
+                        remaining_components_df.iloc[i]["name"]
+                        == remaining_components_df.iloc[j]["name"]
+                    ):
+                        component_i = remaining_components_df.iloc[i]
+                        component_j = remaining_components_df.iloc[j]
+
+                        # if i center is in j
+                        if (
+                            remaining_components_df.iloc[i]["x_center"]
+                            >= remaining_components_df.iloc[j]["xmin"]
+                            and remaining_components_df.iloc[i]["x_center"]
+                            <= remaining_components_df.iloc[j]["xmax"]
+                            and remaining_components_df.iloc[i]["y_center"]
+                            >= remaining_components_df.iloc[j]["ymin"]
+                            and remaining_components_df.iloc[i]["y_center"]
+                            <= remaining_components_df.iloc[j]["ymax"]
+                        ):
+                            overlapping_components.append(component_i.predicted_id)
+                        # if j center is in i
+                        elif (
+                            remaining_components_df.iloc[j]["x_center"]
+                            >= remaining_components_df.iloc[i]["xmin"]
+                            and remaining_components_df.iloc[j]["x_center"]
+                            <= remaining_components_df.iloc[i]["xmax"]
+                            and remaining_components_df.iloc[j]["y_center"]
+                            >= remaining_components_df.iloc[i]["ymin"]
+                            and remaining_components_df.iloc[j]["y_center"]
+                            <= remaining_components_df.iloc[i]["ymax"]
+                        ):
+                            overlapping_components.append(component_j.predicted_id)
+
+            # remove duplicate of overlapping_components
+            overlapping_components = list(set(overlapping_components))
+
+            # # plot the overlapping components
+            # fig, ax = plt.subplots()
+            # ax.imshow(image)
+            # for id in overlapping_components:
+            #     component = remaining_components_df[
+            #         remaining_components_df["predicted_id"] == id
+            #     ].iloc[0]
+            #     rect = Rectangle(
+            #         (component["xmin"], component["ymin"]),
+            #         component["xmax"] - component["xmin"],
+            #         component["ymax"] - component["ymin"],
+            #         linewidth=1,
+            #         edgecolor="r",
+            #         facecolor="none",
+            #     )
+            #     ax.add_patch(rect)
+            #     ax.text(
+            #         component["xmin"],
+            #         component["ymin"],
+            #         f"{component['name']} {component['confidence']:.2f}",
+            #         fontsize=8,
+            #         color="r",
+            #     )
+            # plt.show()
+
+            # create a new dataframe filter out the overlapping_components
+            for pred_id in overlapping_components:
+                # remaining_components_df = remaining_components_df[
+                #     remaining_components_df["predicted_id"] != pred_id
+                # ]
+                remaining_components_df = remaining_components_df.drop(
+                    remaining_components_df[
+                        remaining_components_df["predicted_id"] == pred_id
+                    ].index
+                )
+
+            # sort by x_center, y_center left to right, then top to bottom
+            remaining_components_df = remaining_components_df.sort_values(
+                by=["x_center", "y_center"],
+                ascending=[True, True],
+            )
+
+            # reset the index
+            remaining_components_df.reset_index(drop=True, inplace=True)
 
             # # print the result
             # print(dataframe_result)
@@ -86,7 +185,7 @@ class InferenceMMDet:
             # )
             # visualizer.show()
 
-            return dataframe_result
+            return remaining_components_df
 
         except Exception as e:
             print(e)
