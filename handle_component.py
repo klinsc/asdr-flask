@@ -137,13 +137,6 @@ class HandleComponent:
             if drawingType == None:
                 raise Exception("Drawing type not found")
 
-            # queries all lines in the database on line type table
-            line_types = await prisma.linetype.find_many(
-                where={"drawingTypeId": drawingType.id}, order={"index": "asc"}
-            )
-            if len(line_types) == 0:
-                raise Exception("Line not found")
-
             # get all line types with their components
             line_types = await prisma.linetype.find_many(
                 where={"drawingTypeId": drawingType.id},
