@@ -182,10 +182,59 @@ class HandleComponent:
                                 in remaining_components_df["name"].values
                             ):
                                 # get the first index of the component in the remaining components
-                                index = remaining_components_df[
-                                    remaining_components_df["name"]
-                                    == line_type_component.Component.name  # type: ignore
-                                ].index[0]
+                                index = -1
+
+                                # if the component is mandatory, save the center point
+                                if (
+                                    mandatory_center_xy == [0, 0]
+                                    and line_type_component.componentType == "mandatory"
+                                ):
+                                    index = remaining_components_df[
+                                        remaining_components_df["name"]
+                                        == line_type_component.Component.name  # type: ignore
+                                    ].index[0]
+
+                                    xmin, ymin, xmax, ymax = (
+                                        remaining_components_df.loc[
+                                            index, ["xmin", "ymin", "xmax", "ymax"]
+                                        ]
+                                    ).values
+
+                                    mandatory_center_xy = [
+                                        (xmin + xmax) / 2,
+                                        (ymin + ymax) / 2,
+                                    ]
+
+                                else:
+                                    # get the closest component to the mandatory component
+                                    remaining_components_df["center_x"] = (
+                                        remaining_components_df["xmin"]
+                                        + remaining_components_df["xmax"]
+                                    ) / 2
+                                    remaining_components_df["center_y"] = (
+                                        remaining_components_df["ymin"]
+                                        + remaining_components_df["ymax"]
+                                    ) / 2
+
+                                    # calculate the distance between the mandatory component and the remaining components
+                                    remaining_components_df["distance"] = (
+                                        (
+                                            remaining_components_df["center_x"]
+                                            - mandatory_center_xy[0]
+                                        )
+                                        ** 2
+                                        + (
+                                            remaining_components_df["center_y"]
+                                            - mandatory_center_xy[1]
+                                        )
+                                        ** 2
+                                    ) ** 0.5
+
+                                    # get the index of the closest component
+                                    index = remaining_components_df[
+                                        remaining_components_df["name"]
+                                        == line_type_component.Component.name  # type: ignore
+                                    ]["distance"].idxmin()
 
                                 # add the component to the found components
                                 found_components_df = pd.concat(
