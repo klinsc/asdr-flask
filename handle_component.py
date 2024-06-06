@@ -506,7 +506,9 @@ class HandleComponent:
             )
 
             # n_clusters is the number of line types * its count
-            n_clusters = sum([lineType.count for lineType in lineTypes])
+            n_clusters = sum([lineType.count for lineType in lineTypes]) / 2
+            # parse into int
+            n_clusters = int(n_clusters)
 
             # Perform clustering
             clustering = AgglomerativeClustering(
