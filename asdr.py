@@ -116,8 +116,6 @@ def predict():
         # predict the bounding boxes
         df = model.inference(image_path)
 
-        # remove the image from disk
-        image.remove()
 
         # create a component handler
         component_handler = HandleComponent(df, drawing_type_id)
@@ -203,6 +201,9 @@ def predict():
 
         return make_response(f"Internal Server Error: {e}", 500)
     finally:
+        # remove the image from disk
+        image.remove()
+
         print(f"predict() {time.time() - start_time} seconds ---")
 
 
