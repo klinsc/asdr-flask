@@ -27,7 +27,15 @@
       "program": "inference.py",
       "console": "integratedTerminal",
       "justMyCode": true,
-      "args": "--threshold=0.5 --config=configs/${config:MMYOLO_CONFIG}.py --checkpoint models/${config:MMYOLO_MODEL}.pth --image=${config:MMYOLO_IMAGE}"
+      "args": "--threshold=0.5 --config=configs/${config:MMYOLO_CONFIG}.py --checkpoint checkpoints/${config:MMYOLO_MODEL}.pth --image=${config:MMYOLO_IMAGE}"
+    },
+    {
+      "name": "display.py",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/temp/display.py",
+      "console": "integratedTerminal",
+      "justMyCode": true
     }
   ]
 }
