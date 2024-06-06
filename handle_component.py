@@ -274,11 +274,6 @@ class HandleComponent:
             ):
                 raise Exception("Error in diagnose: found + remaining != predicted")
 
-            # # debug : save all components to csv
-            # found_components_df.to_csv("temp/found_components.csv")
-            # remaining_components_df.to_csv("temp/remaining_components.csv")
-            # missing_components_df.to_csv("temp/missing_components.csv")
-
             return found_components_df, remaining_components_df, missing_components_df
 
         except Exception as e:
