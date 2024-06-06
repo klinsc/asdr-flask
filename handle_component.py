@@ -175,6 +175,7 @@ class HandleComponent:
             for line_type in line_types:
                 for i in range(line_type.count):
                     # loop through the LineTypeComponents of the line type
+                    mandatory_center_xy = [0, 0]
                     for line_type_component in line_type.LineTypeComponent:  # type: ignore
                         for j in range(line_type_component.count):
                             if (
