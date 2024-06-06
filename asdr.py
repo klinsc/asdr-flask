@@ -116,7 +116,6 @@ def predict():
         # predict the bounding boxes
         df = model.inference(image_path)
 
-
         # create a component handler
         component_handler = HandleComponent(df, drawing_type_id)
         # 1) add column id & color to drawing_components_df with value of id & color from database
@@ -137,18 +136,18 @@ def predict():
         ):
             raise Exception("Error in diagnose components")
 
-        # 3) sort the line type components
-        sorted_line_type_components_df = component_handler.sort_line_type_components(
-            found_components_df
-        )
-        if sorted_line_type_components_df is None:
-            raise Exception("Error in sort line type components")
+        # # 3) sort the line type components
+        # sorted_line_type_components_df = component_handler.sort_line_type_components(
+        #     found_components_df
+        # )
+        # if sorted_line_type_components_df is None:
+        #     raise Exception("Error in sort line type components")
 
-        # validate that found_components_df + remaining_components_df = predicted_components_df
-        if len(predicted_components_df) != len(sorted_line_type_components_df) + len(
-            remaining_components_df
-        ):
-            raise Exception("Error in sort: found + remaining != predicted")
+        # # validate that found_components_df + remaining_components_df = predicted_components_df
+        # if len(predicted_components_df) != len(sorted_line_type_components_df) + len(
+        #     remaining_components_df
+        # ):
+        #     raise Exception("Error in sort: found + remaining != predicted")
 
         # 4) cluster the components
         clustered_found_components_df = asyncio.run(
