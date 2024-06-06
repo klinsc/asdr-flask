@@ -146,6 +146,13 @@ class HandleComponent:
             if len(line_types) == 0:
                 raise Exception("Line type not found")
 
+            for line_type in line_types:
+                if line_type.LineTypeComponent != None:
+                    for line_type_component in line_type.LineTypeComponent:
+                        if line_type_component.componentType == "mandatory":
+                            line_type.LineTypeComponent.remove(line_type_component)
+                            line_type.LineTypeComponent.insert(0, line_type_component)
+
             # define: remaining components
             remaining_components_df = self.predicted_components_df.copy()
 
