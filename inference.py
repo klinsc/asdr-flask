@@ -7,6 +7,7 @@ import pandas as pd
 import torch
 from matplotlib import pyplot as plt
 from mmdet.apis import inference_detector, init_detector
+from mmdet.registry import VISUALIZERS
 
 
 class InferenceMMDet:
@@ -66,6 +67,24 @@ class InferenceMMDet:
 
             # # print the result
             # print(dataframe_result)
+
+            # # init the visualizer(execute this block only once)
+            # visualizer = VISUALIZERS.build(self.model.cfg.visualizer)  # type: ignore
+            # # the dataset_meta is loaded from the checkpoint and
+            # # then pass to the model in init_detector
+            # visualizer.dataset_meta = self.model.dataset_meta
+
+            # # show the results & save the results
+            # visualizer.add_datasample(
+            #     "result",
+            #     image,
+            #     data_sample=result,
+            #     draw_gt=False,
+            #     wait_time=0,
+            #     out_file=f"results.jpg",
+            #     pred_score_thr=0.5,
+            # )
+            # visualizer.show()
 
             return dataframe_result
 
