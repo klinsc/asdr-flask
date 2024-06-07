@@ -185,6 +185,13 @@ class HandleComponent:
                                     mandatory_center_xy == [0, 0]
                                     and line_type_component.componentType == "mandatory"
                                 ):
+                                    # sort the remaining components by the center_y
+                                    remaining_components_df = (
+                                        remaining_components_df.sort_values(
+                                            by=["y_center"], ascending=True
+                                        )
+                                    )
+
                                     index = remaining_components_df[
                                         remaining_components_df["name"]
                                         == line_type_component.Component.name  # type: ignore
