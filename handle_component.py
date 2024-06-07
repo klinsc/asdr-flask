@@ -232,6 +232,21 @@ class HandleComponent:
                                         == line_type_component.Component.name  # type: ignore
                                     ]["distance"].idxmin()
 
+                                # if the component is not mandatory, then recalibrate the mandatory center point, with a weight factor
+                                if line_type_component.componentType != "mandatory":
+                                    newest_found_component = (
+                                        remaining_components_df.loc[[index]]
+                                    )
+                                    weight_factor = 0.8
+                                    mandatory_center_xy = [
+                                        weight_factor * mandatory_center_xy[0]
+                                        + (1 - weight_factor)
+                                        * newest_found_component["center_x"].values[0],
+                                        weight_factor * mandatory_center_xy[1]
+                                        + (1 - weight_factor)
+                                        * newest_found_component["center_y"].values[0],
+                                    ]
+
                                 # add the component to the found components
                                 found_components_df = pd.concat(
                                     [
