@@ -743,6 +743,71 @@ class HandleComponent:
         finally:
             print(f"---getIdComponents() {time.time() - time_start} seconds ---")
 
+    async def get_found_convexhull(
+        self,
+        found_components_df: pd.DataFrame,
+    ) -> pd.DataFrame:
+        """
+        Returns the convex hull of the found components
+        """
+        time_start = time.time()
+        try:
+            # group by line type id & group and generate new uuid for each group
+            groups = pd.DataFrame(
+                found_components_df.groupby(["lineTypeIdNumber"]).size().reset_index()
+            )
+            groups["key"] = [str(uuid.uuid4())[:8] for i in range(len(groups))]
+
+            # create a new dataframe to store the hull of each line type id
+            hulls = pd.DataFrame(
+                columns=["foundLineTypeId", "points", "key", "foundLineTypeName"]
+            )
+
+            for index, row in groups.iterrows():
+                # get the line type components of the line type id
+                line_type_components = found_components_df[
+                    found_components_df["lineTypeIdNumber"] == row["lineTypeIdNumber"]
+                ]
+
+                # skip for line type components length < 3
+                if len(line_type_components) < 3:
+                    continue
+
+                # get the convex hull of the line type components
+                hull = self.create_convexhull(line_type_components)
+
+                # get the line type name from db
+                prisma = Prisma()
+                await prisma.connect()
+                line_type_id = row["lineTypeIdNumber"].split("-")[0]
+                line_type = await prisma.linetype.find_first(where={"id": line_type_id})
+                if line_type == None:
+                    raise Exception("Line type not found")
+
+                hulls = pd.concat(
+                    [
+                        hulls,
+                        pd.DataFrame(
+                            {
+                                "foundLineTypeId": [row["lineTypeIdNumber"]],
+                                "points": [hull[0]],
+                                "key": [row["key"]],
+                                "foundLineTypeName": [line_type.name],
+                            }
+                        ),
+                    ],
+                    ignore_index=True,
+                )
+
+            return hulls
+
+        except Exception as e:
+            print(e)
+            raise e
+
+        finally:
+            print(f"---getIdComponents() {time.time() - time_start} seconds ---")
+
     async def correct_missing_component(
         self,
         clustered_found_components_df: pd.DataFrame,
