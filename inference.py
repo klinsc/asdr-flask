@@ -83,37 +83,60 @@ class InferenceMMDet:
             overlapping_components = []
             for i in range(len(remaining_components_df)):
                 for j in range(i + 1, len(remaining_components_df)):
-                    # if the two components are the same
-                    if (
-                        remaining_components_df.iloc[i]["name"]
-                        == remaining_components_df.iloc[j]["name"]
-                    ):
-                        component_i = remaining_components_df.iloc[i]
-                        component_j = remaining_components_df.iloc[j]
+                    # get the components
+                    component_i = remaining_components_df.iloc[i]
+                    component_j = remaining_components_df.iloc[j]
 
-                        # if i center is in j
-                        if (
-                            remaining_components_df.iloc[i]["x_center"]
-                            >= remaining_components_df.iloc[j]["xmin"]
-                            and remaining_components_df.iloc[i]["x_center"]
-                            <= remaining_components_df.iloc[j]["xmax"]
-                            and remaining_components_df.iloc[i]["y_center"]
-                            >= remaining_components_df.iloc[j]["ymin"]
-                            and remaining_components_df.iloc[i]["y_center"]
-                            <= remaining_components_df.iloc[j]["ymax"]
-                        ):
+                    # calculate the overlapping percentage (IoU)
+                    x_left = max(component_i["xmin"], component_j["xmin"])
+                    y_top = max(component_i["ymin"], component_j["ymin"])
+                    x_right = min(component_i["xmax"], component_j["xmax"])
+                    y_bottom = min(component_i["ymax"], component_j["ymax"])
+                    intersection_area = max(0, x_right - x_left) * max(
+                        0, y_bottom - y_top
+                    )
+                    area_i = (component_i["xmax"] - component_i["xmin"]) * (
+                        component_i["ymax"] - component_i["ymin"]
+                    )
+                    area_j = (component_j["xmax"] - component_j["xmin"]) * (
+                        component_j["ymax"] - component_j["ymin"]
+                    )
+                    union_area = area_i + area_j - intersection_area
+                    iou = intersection_area / union_area
+
+                    # if i center is in j
+                    if (
+                        remaining_components_df.iloc[i]["x_center"]
+                        >= remaining_components_df.iloc[j]["xmin"]
+                        and remaining_components_df.iloc[i]["x_center"]
+                        <= remaining_components_df.iloc[j]["xmax"]
+                        and remaining_components_df.iloc[i]["y_center"]
+                        >= remaining_components_df.iloc[j]["ymin"]
+                        and remaining_components_df.iloc[i]["y_center"]
+                        <= remaining_components_df.iloc[j]["ymax"]
+                        and iou > 0.5
+                    ):
+                        # if i confidence is higher than j
+                        if component_i["confidence"] > component_j["confidence"]:
+                            overlapping_components.append(component_j.predicted_id)
+                        else:
                             overlapping_components.append(component_i.predicted_id)
-                        # if j center is in i
-                        elif (
-                            remaining_components_df.iloc[j]["x_center"]
-                            >= remaining_components_df.iloc[i]["xmin"]
-                            and remaining_components_df.iloc[j]["x_center"]
-                            <= remaining_components_df.iloc[i]["xmax"]
-                            and remaining_components_df.iloc[j]["y_center"]
-                            >= remaining_components_df.iloc[i]["ymin"]
-                            and remaining_components_df.iloc[j]["y_center"]
-                            <= remaining_components_df.iloc[i]["ymax"]
-                        ):
+                    # if j center is in i
+                    elif (
+                        remaining_components_df.iloc[j]["x_center"]
+                        >= remaining_components_df.iloc[i]["xmin"]
+                        and remaining_components_df.iloc[j]["x_center"]
+                        <= remaining_components_df.iloc[i]["xmax"]
+                        and remaining_components_df.iloc[j]["y_center"]
+                        >= remaining_components_df.iloc[i]["ymin"]
+                        and remaining_components_df.iloc[j]["y_center"]
+                        <= remaining_components_df.iloc[i]["ymax"]
+                        and iou > 0.5
+                    ):
+                        # if j confidence is higher than i
+                        if component_j["confidence"] > component_i["confidence"]:
+                            overlapping_components.append(component_i.predicted_id)
+                        else:
                             overlapping_components.append(component_j.predicted_id)
 
             # remove duplicate of overlapping_components
