@@ -171,9 +171,7 @@ def predict():
         # return all dfs to the client in json format
         predicted_components_json = predicted_components_df.to_json(orient="records")
         found_components_json = found_components_df.to_json(orient="records")
-        missing_components_json = corrected_missing_components_df.to_json(
-            orient="records"
-        )
+        missing_components_json = missing_components_df.to_json(orient="records")
         remaining_components_json = remaining_components_df.to_json(orient="records")
         clustered_found_components_json = clustered_found_components_df.to_json(
             orient="records"
