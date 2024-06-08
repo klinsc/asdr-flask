@@ -81,25 +81,36 @@ def upload():
 
 
 @app.route("/predict", methods=["POST"])
-def predict():
+def predict(
+    debug=False, image_path: str | None = None, drawing_type_id: str | None = None
+):
     start_time = time.time()
     try:
-        # get the drawing type id from the request
-        drawing_type_id = request.args.get("drawingTypeId")
+        if not debug:
+            # get the drawing type id from the request
+            drawing_type_id = request.args.get("drawingTypeId")
+            if not drawing_type_id:
+                return make_response("Bad Request: drawingTypeId is required", 400)
+
+            # get the images from the request
+            file = request.files["image"]
+
+            # convert the images to a byte array
+            byte_arr: bytearray = file.read()
+            if not byte_arr:
+                return make_response("Bad Request: file is required", 400)
+
+            # generate a random name for the image
+            image = HandleImage(byte_arr)
+            image_path = image.get_image_path()
+
+        if not image_path:
+            return make_response("Internal Server Error: image path not found", 500)
+
         if not drawing_type_id:
-            return make_response("Bad Request: drawingTypeId is required", 400)
-
-        # get the images from the request
-        file = request.files["image"]
-
-        # convert the images to a byte array
-        byte_arr: bytearray = file.read()
-        if not byte_arr:
-            return make_response("Bad Request: file is required", 400)
-
-        # generate a random name for the image
-        image = HandleImage(byte_arr)
-        image_path = image.get_image_path()
+            return make_response(
+                "Internal Server Error: drawing type id not found", 500
+            )
 
         # *deprecated
         # create a yolov5 object
@@ -114,7 +125,16 @@ def predict():
         model = InferenceMMDet(config_path, checkpoint_path)
 
         # predict the bounding boxes
-        df = model.inference(image_path)
+        df = pd.DataFrame()
+        if not debug:
+            df = model.inference(image_path)
+        else:
+            debug_name = image_path.split("/")[-1].split(".")[0]
+            if not os.path.exists(f"temp/{debug_name}.csv"):
+                df = model.inference(image_path)
+                df.to_csv(f"temp/{debug_name}.csv", index=False)
+            else:
+                df = pd.read_csv(f"temp/{debug_name}.csv")
 
         # create a component handler
         component_handler = HandleComponent(df, drawing_type_id)
@@ -128,7 +148,7 @@ def predict():
             found_components_df,
             remaining_components_df,
             missing_components_df,
-        ) = asyncio.run(component_handler.diagnose_components())
+        ) = asyncio.run(component_handler.diagnose_components(image_path))
         if (
             found_components_df is None
             or remaining_components_df is None
@@ -205,11 +225,46 @@ def predict():
 
         return make_response(f"Internal Server Error: {e}", 500)
     finally:
-        # remove the image from disk
-        image.remove()
+        if not debug and image_path:
+            # remove the image from disk
+            os.remove(image_path)
 
         print(f"predict() {time.time() - start_time} seconds ---")
 
 
+def parse_args():
+    import argparse
+
+    parser = argparse.ArgumentParser(description="ASDR Flask Server")
+    parser.add_argument(
+        "--debug",
+        type=str,
+        default="false",
+        help="Run the server in debug mode",
+    )
+    parser.add_argument(
+        "--image_path",
+        type=str,
+        default="images/image.jpeg",
+        help="The path to the image",
+    )
+
+    return parser.parse_args()
+
+
+def main():
+    args = parse_args()
+
+    if args.debug == "true":
+        predict(
+            debug=True,
+            image_path=args.image_path,
+            drawing_type_id="clwx2950z0000348civ5vsm84",
+        )
+
+    else:
+        app.run(debug=False, host="0.0.0.0")
+
+
 if __name__ == "__main__":
-    app.run(debug=False, host="0.0.0.0")
+    main()
