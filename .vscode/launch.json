@@ -40,13 +40,13 @@
       "args": ["--debug=true", "--image_path=images/missed-1-22dpm.jpg"]
     },
     {
-      "name": "asdr.py-incorrect-ss-ll",
+      "name": "asdr.py-missed-ss-ll",
       "type": "debugpy",
       "request": "launch",
       "program": "asdr.py",
       "console": "integratedTerminal",
-      "justMyCode": true,
-      "args": ["--debug=true", "--image_path=images/incorrect-ss-ll.jpg"]
+      "justMyCode": false,
+      "args": ["--debug=true", "--image_path=images/missed-ss-ll.jpg"]
     },
     {
       "name": "test.py",
