@@ -54,8 +54,8 @@ class InferenceMMDet:
                     "ymin": bbox_result[:, 1],
                     "xmax": bbox_result[:, 2],
                     "ymax": bbox_result[:, 3],
-                    "x_center": (bbox_result[:, 0] + bbox_result[:, 2]) / 2,
-                    "y_center": (bbox_result[:, 1] + bbox_result[:, 3]) / 2,
+                    "center_x": (bbox_result[:, 0] + bbox_result[:, 2]) / 2,
+                    "center_y": (bbox_result[:, 1] + bbox_result[:, 3]) / 2,
                     # use "confidence" instead of "score" to implement with asdr-flask
                     "confidence": score_result,
                     "class": label_result,
@@ -106,13 +106,13 @@ class InferenceMMDet:
 
                     # if i center is in j
                     if (
-                        remaining_components_df.iloc[i]["x_center"]
+                        remaining_components_df.iloc[i]["center_x"]
                         >= remaining_components_df.iloc[j]["xmin"]
-                        and remaining_components_df.iloc[i]["x_center"]
+                        and remaining_components_df.iloc[i]["center_x"]
                         <= remaining_components_df.iloc[j]["xmax"]
-                        and remaining_components_df.iloc[i]["y_center"]
+                        and remaining_components_df.iloc[i]["center_y"]
                         >= remaining_components_df.iloc[j]["ymin"]
-                        and remaining_components_df.iloc[i]["y_center"]
+                        and remaining_components_df.iloc[i]["center_y"]
                         <= remaining_components_df.iloc[j]["ymax"]
                         and iou > 0.5
                     ):
@@ -123,13 +123,13 @@ class InferenceMMDet:
                             overlapping_components.append(component_i.predicted_id)
                     # if j center is in i
                     elif (
-                        remaining_components_df.iloc[j]["x_center"]
+                        remaining_components_df.iloc[j]["center_x"]
                         >= remaining_components_df.iloc[i]["xmin"]
-                        and remaining_components_df.iloc[j]["x_center"]
+                        and remaining_components_df.iloc[j]["center_x"]
                         <= remaining_components_df.iloc[i]["xmax"]
-                        and remaining_components_df.iloc[j]["y_center"]
+                        and remaining_components_df.iloc[j]["center_y"]
                         >= remaining_components_df.iloc[i]["ymin"]
-                        and remaining_components_df.iloc[j]["y_center"]
+                        and remaining_components_df.iloc[j]["center_y"]
                         <= remaining_components_df.iloc[i]["ymax"]
                         and iou > 0.5
                     ):
@@ -178,9 +178,9 @@ class InferenceMMDet:
                     ].index
                 )
 
-            # sort by x_center, y_center left to right, then top to bottom
+            # sort by center_x, center_y left to right, then top to bottom
             remaining_components_df = remaining_components_df.sort_values(
-                by=["x_center", "y_center"],
+                by=["center_x", "center_y"],
                 ascending=[True, True],
             )
 
