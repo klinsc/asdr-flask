@@ -656,6 +656,460 @@ class HandleComponent:
         finally:
             print(f"---diagnose_components() {time.time() - time_start} seconds ---")
 
+    async def diagnose_components_v2(self, image_path: str, file_name: str):
+        """
+        Order by index asc, for both line types and line type components.
+        Loop through, check if the component exists in the predicted_components_df.
+        If yes, then add it to the found components with additional information
+        e.g. lineTypeId, group, center point, lineTypeIdNumber, checked.
+        Then remove it from the remaining components.
+
+        If no, add it to the missing components with additional information
+        e.g. name, color, key, lineTypeId, lineTypeIdNumber, lineTypeName.
+        """
+        time_start = time.time()
+        try:
+            # database:
+            prisma = Prisma()
+            await prisma.connect()
+
+            image_path = f'images/filled_{self.image_path.split("/")[-1]}'
+            image = cv2.imread(image_path)
+
+            # remove text from the image
+            image = cv2.medianBlur(image, 5)
+
+            # # Edge detection
+            # blurred = cv2.GaussianBlur(image, (5, 5), 0)
+
+            # Convert to a binary image
+            binary_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+            binary_image = cv2.threshold(
+                binary_image,
+                0,
+                200,
+                cv2.THRESH_BINARY + cv2.THRESH_OTSU,
+            )[1]
+
+            # # Invert the binary image
+            # binary_image = ~binary_image
+
+            # Fill small holes in the image
+            binary_image = morphology.remove_small_holes(
+                binary_image, area_threshold=2000
+            )
+
+            # # See image
+            # plt.imshow(binary_image, cmap="gray")
+            # plt.savefig("binary_image.png", dpi=300)
+            # plt.close()
+
+            # query the database on drawing type table
+            drawingType = await prisma.drawingtype.find_first(
+                where={"id": self.drawing_type_id}
+            )
+            if drawingType == None:
+                raise Exception("Drawing type not found")
+
+            # get all line types with their components
+            line_types = await prisma.linetype.find_many(
+                where={"drawingTypeId": drawingType.id},
+                order={"index": "asc"},
+                include={"LineTypeComponent": {"include": {"Component": True}}},
+            )
+            if len(line_types) == 0:
+                raise Exception("Line type not found")
+
+            for line_type in line_types:
+                if line_type.LineTypeComponent != None:
+                    for line_type_component in line_type.LineTypeComponent:
+                        if line_type_component.componentType == "mandatory":
+                            line_type.LineTypeComponent.remove(line_type_component)
+                            line_type.LineTypeComponent.insert(0, line_type_component)
+
+            # define: remaining components
+            remaining_components_df = self.predicted_components_df.copy()
+
+            # define: missing components
+            missing_components_df = self.predicted_components_df.copy().drop(
+                self.predicted_components_df.index
+            )
+
+            # define: found components
+            found_components_df = self.predicted_components_df.copy().drop(
+                self.predicted_components_df.index
+            )
+
+            # get the highest y of 22_breaker
+            index_highest_22_breaker = -1
+            for o, row in remaining_components_df.iterrows():
+                if row["name"] == "22_breaker":
+                    if index_highest_22_breaker == -1:
+                        index_highest_22_breaker = o
+                    elif (
+                        row["center_y"]
+                        < remaining_components_df.loc[
+                            index_highest_22_breaker, "center_y"
+                        ]  # type: ignore
+                    ):  # type: ignore
+                        index_highest_22_breaker = o
+            # get the highest y of 22_breaker
+            highest_22_breaker_y = 5000
+            if index_highest_22_breaker != -1:
+                highest_22_breaker_y = remaining_components_df.loc[
+                    index_highest_22_breaker, "center_y"
+                ]  # type: ignore
+
+            # loop through line_types to diagnose the LineTypeComponent
+            for k in range(len(line_types)):
+                line_type = line_types[k]
+
+                for i in range(line_type.count):
+                    # loop through the LineTypeComponents of the line type
+                    mandatory_center_xy = [0, 0]
+
+                    for line_type_component in line_type.LineTypeComponent:  # type: ignore
+                        for j in range(line_type_component.count):
+                            if (
+                                line_type_component.Component.name  # type: ignore
+                                in remaining_components_df["name"].values
+                            ):
+                                # get the first index of the component in the remaining components
+                                index = -1
+
+                                # if the component is mandatory, save the center point
+                                if (
+                                    mandatory_center_xy == [0, 0]
+                                    and line_type_component.componentType == "mandatory"
+                                ):
+                                    # if 115 sort by center_y, if 22 sort by center_x
+                                    # sort the remaining components by the center_y
+                                    if line_type.name.split("_")[0] == "115":
+                                        # remaining_components_df = (
+                                        #     remaining_components_df.sort_values(
+                                        #         by=["center_x"], ascending=True
+                                        #     )
+                                        # ) ->
+                                        remaining_components_df = (
+                                            remaining_components_df.sort_values(
+                                                by=["center_y"], ascending=True
+                                            )
+                                        )  # V
+                                    elif line_type.name.split("_")[0] == "22":
+                                        remaining_components_df = (
+                                            remaining_components_df.sort_values(
+                                                by=["center_x"], ascending=True
+                                            )
+                                        )  # ->
+
+                                    index = remaining_components_df[
+                                        remaining_components_df["name"]
+                                        == line_type_component.Component.name  # type: ignore
+                                    ].index[0]
+
+                                    xmin, ymin, xmax, ymax = (
+                                        remaining_components_df.loc[
+                                            index, ["xmin", "ymin", "xmax", "ymax"]
+                                        ]
+                                    ).values
+
+                                    mandatory_center_xy = [
+                                        (xmin + xmax) / 2,
+                                        (ymin + ymax) / 2,
+                                    ]
+
+                                # if the fisrt component is not mandatory, then find the closest component to the mandatory component
+                                elif (
+                                    mandatory_center_xy == [0, 0]
+                                    and line_type_component.componentType == "optional"
+                                ):
+                                    # if 115 sort by center_y, if 22 sort by center_x
+                                    # sort the remaining components by the center_y
+                                    if line_type.name.split("_")[0] == "115":
+                                        remaining_components_df = (
+                                            remaining_components_df.sort_values(
+                                                by=["center_y"], ascending=True
+                                            )
+                                        )
+                                    elif line_type.name.split("_")[0] == "22":
+                                        remaining_components_df = (
+                                            remaining_components_df.sort_values(
+                                                by=["center_x"], ascending=True
+                                            )
+                                        )
+
+                                    index = remaining_components_df[
+                                        remaining_components_df["name"]
+                                        == line_type_component.Component.name  # type: ignore
+                                    ].index[0]
+
+                                    xmin, ymin, xmax, ymax = (
+                                        remaining_components_df.loc[
+                                            index, ["xmin", "ymin", "xmax", "ymax"]
+                                        ]
+                                    ).values
+
+                                    mandatory_center_xy = [
+                                        (xmin + xmax) / 2,
+                                        (ymin + ymax) / 2,
+                                    ]
+
+                                    remaining_components_df.at[
+                                        index, "componentType"
+                                    ] = "mandatory"
+
+                                else:
+                                    remaining_components_df["distance"] = 5000
+
+                                    # Filtering components
+                                    filtered_df = remaining_components_df[
+                                        remaining_components_df["name"] == line_type_component.Component.name  # type: ignore
+                                    ]
+
+                                    # Using ThreadPoolExecutor for parallel processing
+                                    with ThreadPoolExecutor() as executor:
+                                        futures = [
+                                            executor.submit(
+                                                self.process_component,
+                                                row,
+                                                binary_image,
+                                                mandatory_center_xy,
+                                                highest_22_breaker_y,
+                                                line_type,
+                                            )
+                                            for index, row in filtered_df.iterrows()
+                                        ]
+
+                                    results = [future.result() for future in futures]
+
+                                    # Update DataFrame with distances
+                                    for key, distance, path_coords in results:
+                                        if key is not None:
+                                            remaining_components_df.loc[
+                                                remaining_components_df["key"] == key,
+                                                "distance",
+                                            ] = distance
+
+                                    # get the closest component to the mandatory component with distance != 5000 with the same name
+                                    index = -1
+                                    for (
+                                        c,
+                                        component,
+                                    ) in remaining_components_df.iterrows():
+                                        if component["distance"] != 5000:
+                                            if (
+                                                component["name"]
+                                                == line_type_component.Component.name  # type: ignore
+                                            ):
+                                                if (
+                                                    index == -1
+                                                    or component["distance"]
+                                                    < remaining_components_df.loc[
+                                                        index, "distance"
+                                                    ]  # type: ignore
+                                                ):
+                                                    index = c
+
+                                    # if index == -1, add the component to the missing components
+                                    if index == -1:
+                                        missing_components_df = pd.concat(
+                                            [
+                                                missing_components_df,
+                                                pd.DataFrame(
+                                                    {
+                                                        "name": [
+                                                            line_type_component.Component.name  # type: ignore
+                                                        ],
+                                                        "color": [
+                                                            line_type_component.Component.color  # type: ignore
+                                                        ],
+                                                        "key": [
+                                                            str(
+                                                                uuid.uuid4()
+                                                            )[  # generate a small uuid
+                                                                :8
+                                                            ]
+                                                        ],
+                                                        "lineTypeId": [
+                                                            line_type_component.lineTypeId
+                                                        ],
+                                                        "lineTypeIdNumber": [
+                                                            f"{line_type_component.lineTypeId}-{i}"
+                                                        ],
+                                                        "lineTypeName": [
+                                                            f"{line_type.name}-{k}-{i}"
+                                                        ],
+                                                        "checked": [False],
+                                                        "componentType": [
+                                                            line_type_component.componentType
+                                                        ],
+                                                    }
+                                                ),
+                                            ],
+                                            ignore_index=True,
+                                        )
+
+                                        continue
+
+                                # add the component to the found components
+                                found_components_df = pd.concat(
+                                    [
+                                        found_components_df,
+                                        remaining_components_df.loc[[index]],
+                                    ],
+                                    ignore_index=True,
+                                )
+
+                                # also add the lineTypeId to the recently found component
+                                last_index = len(found_components_df) - 1
+                                found_components_df.at[last_index, "lineTypeId"] = (
+                                    line_type_component.lineTypeId
+                                )
+
+                                # also add group number to the recently found component
+                                found_components_df.at[last_index, "group"] = (
+                                    f"{line_type_component.lineTypeId}-{i}"
+                                )
+
+                                # also add center point to the recently found component
+                                found_components_df.at[last_index, "center_x"] = (
+                                    found_components_df.at[last_index, "xmin"]
+                                    + found_components_df.at[last_index, "xmax"]
+                                ) / 2
+                                found_components_df.at[last_index, "center_y"] = (
+                                    found_components_df.at[last_index, "ymin"]
+                                    + found_components_df.at[last_index, "ymax"]
+                                ) / 2
+
+                                # also add lineTypeIdNumber to the recently found component, which is a combination of lineTypeId and group
+                                found_components_df.at[
+                                    last_index, "lineTypeIdNumber"
+                                ] = f"{line_type_component.lineTypeId}-{i}"
+
+                                # add lineTypeName
+                                found_components_df.at[last_index, "lineTypeName"] = (
+                                    f"{line_type.name}-{k}-{i}"
+                                )
+
+                                # also add checked to the recently found component
+                                found_components_df.at[last_index, "checked"] = False
+
+                                # also add componentType to the recently found component
+                                found_components_df.at[last_index, "componentType"] = (
+                                    line_type_component.componentType
+                                )
+
+                                # remove the component from the remaining components
+                                remaining_components_df.drop(index, inplace=True)
+
+                            # add the component to the missing components
+                            else:
+                                missing_components_df = pd.concat(
+                                    [
+                                        missing_components_df,
+                                        pd.DataFrame(
+                                            {
+                                                "name": [
+                                                    line_type_component.Component.name  # type: ignore
+                                                ],
+                                                "color": [
+                                                    line_type_component.Component.color  # type: ignore
+                                                ],
+                                                "key": [
+                                                    str(uuid.uuid4())[
+                                                        :8
+                                                    ]  # generate a small uuid
+                                                ],
+                                                "lineTypeId": [
+                                                    line_type_component.lineTypeId
+                                                ],
+                                                "lineTypeIdNumber": [
+                                                    f"{line_type_component.lineTypeId}-{i}"
+                                                ],
+                                                "lineTypeName": [
+                                                    f"{line_type.name}-{k}-{i}"
+                                                ],
+                                                "checked": [False],
+                                                "componentType": [
+                                                    line_type_component.componentType
+                                                ],
+                                            }
+                                        ),
+                                    ],
+                                    ignore_index=True,
+                                )
+
+            # close the database connection
+            await prisma.disconnect()
+
+            # validate that found_components_df + remaining_components_df = predicted_components_df
+            if len(self.predicted_components_df) != len(found_components_df) + len(
+                remaining_components_df
+            ):
+                raise Exception("Error in diagnose: found + remaining != predicted")
+
+            # save to local
+            found_components_df.to_csv(f"csvs/{file_name}_found_df.csv", index=False)
+            remaining_components_df.to_csv(
+                f"csvs/{file_name}_remaining_df.csv", index=False
+            )
+            missing_components_df.to_csv(
+                f"csvs/{file_name}_missing_df.csv", index=False
+            )
+
+            return found_components_df, remaining_components_df, missing_components_df
+
+        except Exception as e:
+            print(e)
+            return None, None, None
+
+        finally:
+            print(f"---diagnose_components() {time.time() - time_start} seconds ---")
+
+    # Function to calculate distance and find path
+    def process_component(
+        self,
+        component,
+        binary_image,
+        mandatory_center_xy,
+        highest_22_breaker_y,
+        line_type,
+    ):
+        busbar_type = line_type.name.split("_")[0]
+
+        # Filter based on busbar type and component position
+        if busbar_type == "115" and component["center_y"] > highest_22_breaker_y:
+            return None, None, None
+        if busbar_type == "22" and component["center_y"] < highest_22_breaker_y:
+            return None, None, None
+
+        point_start = (int(mandatory_center_xy[1]), int(mandatory_center_xy[0]))
+        point_end = (int(component["center_y"]), int(component["center_x"]))
+
+        # Find the path using route_through_array
+        try:
+            indices, weight = route_through_array(
+                binary_image,
+                start=point_start,
+                end=point_end,
+                fully_connected=True,
+            )
+        except ValueError as e:
+            print(f"Error finding path: {e}")
+            return None, None, None
+
+        if indices:
+            path_coords = np.array(indices).T
+
+            # Calculate the distance along the path
+            distances = np.sqrt(np.sum(np.diff(path_coords, axis=1) ** 2, axis=0))
+            total_distance = np.sum(distances)
+
+            return component["key"], total_distance, path_coords  # type: ignore
+        else:
+            print("No path found.")
+            return component.name, 0, None  # type: ignore
+
     def sort_line_type_components(self, found_components_df: pd.DataFrame):
         """
         Sorts the line type components by swapping the closest nodes
