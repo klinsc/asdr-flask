@@ -1110,6 +1110,146 @@ class HandleComponent:
             print("No path found.")
             return component.name, 0, None  # type: ignore
 
+    def display(
+        self,
+        found_components_df: pd.DataFrame,
+        remaining_components_df: pd.DataFrame,
+        missing_components_df: pd.DataFrame,
+        image_path: str,
+    ):
+        # # plot the found components with their line type name and number, different colors for each line type name and number
+        # get unique line type names
+        unique_line_type_names = found_components_df["lineTypeIdNumber"].unique()
+        # get unique colors
+        unique_colors = plt.cm.get_cmap("nipy_spectral", len(unique_line_type_names))
+        # add color to the found components in new column
+        for i, line_type_name in enumerate(unique_line_type_names):
+            found_components_df.loc[
+                found_components_df["lineTypeIdNumber"] == line_type_name,
+                "lineTypeIdNumberColor",
+            ] = colors.to_hex(unique_colors(i))
+
+        # plot the found components
+        fig, ax = plt.subplots()
+        image = mmcv.imread(image_path)
+        ax.imshow(image)
+        for i, component in found_components_df.iterrows():
+            rect = Rectangle(
+                (component["xmin"], component["ymin"]),
+                component["xmax"] - component["xmin"],
+                component["ymax"] - component["ymin"],
+                linewidth=1,
+                edgecolor=component["lineTypeIdNumberColor"],
+                facecolor="none",
+            )
+            ax.add_patch(rect)
+            ax.text(
+                component["xmin"],
+                component["ymin"],
+                f"{component['name']}",
+                fontsize=8,
+                color=component["lineTypeIdNumberColor"],
+            )
+            ax.text(
+                component["xmin"],
+                component["ymin"] - 40,
+                f"{component['lineTypeName']}-{component['lineTypeIdNumber'].split('-')[1]}",
+                fontsize=8,
+                color=component["lineTypeIdNumberColor"],
+            )
+
+        # plot the missing components on top left corner one by one
+        ax.text(0, 0, "Missing components", fontsize=10, color="r")
+        for i, component in missing_components_df.iterrows():
+            ax.text(
+                0,
+                10 + i * 200,  # type: ignore
+                f"{component['name']} {component['lineTypeName']}",
+                fontsize=8,
+                color="r",
+            )
+
+        # plot the remaining components on top right corner one by one
+        ax.text(
+            0,
+            20 + len(missing_components_df) * 10,
+            "Remaining components",
+            fontsize=10,
+            color="r",
+        )
+        for i, component in remaining_components_df.iterrows():
+            ax.text(
+                0,
+                30 + len(missing_components_df) * 10 + i * 200,  # type: ignore
+                f"{component['name']}",
+                fontsize=8,
+                color="r",
+            )
+
+        # add cursor
+        def onselect(eclick, erelease):
+            # eclick and erelease are the mouse click and release events
+            x1, y1 = eclick.xdata, eclick.ydata
+            x2, y2 = erelease.xdata, erelease.ydata
+            print(f"Rectangle selected from ({x1}, {y1}) to ({x2}, {y2})")
+
+            # the components in the selected rectangle
+            components_in_rectangle = found_components_df[
+                (found_components_df["xmin"] > x1)
+                & (found_components_df["ymin"] > y1)
+                & (found_components_df["xmax"] < x2)
+                & (found_components_df["ymax"] < y2)
+            ]
+
+            # get the bounding box of these components_in_rectangle
+            if len(components_in_rectangle) > 0:
+                xmin = components_in_rectangle["xmin"].min()
+                ymin = components_in_rectangle["ymin"].min()
+                xmax = components_in_rectangle["xmax"].max()
+                ymax = components_in_rectangle["ymax"].max()
+
+                # plot the selected rectangle
+                rect = Rectangle(
+                    (xmin, ymin),
+                    xmax - xmin,
+                    ymax - ymin,
+                    linewidth=1,
+                    edgecolor="r",
+                    facecolor="none",
+                )
+                ax.add_patch(rect)
+
+                # get the mandatory components in the selected rectangle
+                mandatory_components_in_rectangle = components_in_rectangle[
+                    components_in_rectangle["componentType"] == "mandatory"
+                ]
+
+                # plot point of the mandatory components in the selected rectangle
+                for i, component in mandatory_components_in_rectangle.iterrows():
+                    ax.scatter(
+                        component["center_x"],
+                        component["center_y"],
+                        color="r",
+                        s=100,
+                        marker="x",
+                    )
+
+        # Create RectangleSelector
+        rect_selector = RectangleSelector(
+            ax,
+            onselect,
+            useblit=True,
+            button=[1],  # Only respond to left mouse button # type: ignore
+            minspanx=5,
+            minspany=5,
+            spancoords="pixels",
+            interactive=True,
+        )
+
+        # plt.show()
+        # save hires image
+        plt.savefig("found_components_hires.png", dpi=300)
+        plt.close()
     def sort_line_type_components(self, found_components_df: pd.DataFrame):
         """
         Sorts the line type components by swapping the closest nodes
