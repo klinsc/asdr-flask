@@ -1849,6 +1849,80 @@ class HandleComponent:
         finally:
             print(f"---getIdComponents() {time.time() - time_start} seconds ---")
 
+    async def get_clusternumber_convexhull(
+        self,
+        found_components_df: pd.DataFrame,
+        missing_components_df: pd.DataFrame,
+    ) -> pd.DataFrame:
+        """
+        Returns the convex hull of the found components
+        """
+        time_start = time.time()
+        try:
+            # group by lineTypeName
+            cluster_numbers = found_components_df["cluster_number"].unique()
+
+            # create a new dataframe to store the hull of each line type id
+            hulls = pd.DataFrame(columns=["cluster_number", "points", "cluster_name"])
+
+            for cluster_number in cluster_numbers:
+                # get the line type components of the line type id
+                line_type_components = found_components_df[
+                    found_components_df["cluster_number"] == cluster_number
+                ]
+
+                # skip for line type components length < 3
+                if len(line_type_components) < 3:
+                    continue
+
+                # get the convex hull of the line type components
+                hull = self.create_convexhull(line_type_components)
+
+                # get points in sequence of (x, y [,z])
+                points = []
+                for point in hull[0]:
+                    points.append((point["x"], point["y"]))
+
+                hulls = pd.concat(
+                    [
+                        hulls,
+                        pd.DataFrame(
+                            {
+                                "cluster_number": [cluster_number],
+                                "points": [points],
+                                "cluster_name": [cluster_number],
+                            }
+                        ),
+                    ],
+                    ignore_index=True,
+                )
+
+            # # display the hulls
+            # fig, ax = plt.subplots()
+            # image = mmcv.imread(self.image_path)
+            # ax.imshow(image)
+            # for i, hull in hulls.iterrows():
+            #     polygon = Polygon(hull["points"], edgecolor="r", facecolor="none")
+            #     ax.add_patch(polygon)
+            #     ax.text(
+            #         hull["points"][0][0],
+            #         hull["points"][0][1],
+            #         f"{hull['cluster_name']}-{hull['cluster_number']}",
+            #         fontsize=8,
+            #         color="r",
+            #     )
+            # plt.show()
+            # plt.close()
+
+            return hulls
+
+        except Exception as e:
+            print(e)
+            raise e
+
+        finally:
+            print(f"---getIdComponents() {time.time() - time_start} seconds ---")
+
     async def correct_missing_component(
         self,
         clustered_found_components_df: pd.DataFrame,
