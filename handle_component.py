@@ -2019,6 +2019,7 @@ class HandleComponent:
 
         finally:
             print(f"---getIdComponents() {time.time() - time_start} seconds ---")
+
     def correct_missing_component_v2(
         self,
         found_components_df: pd.DataFrame,
