@@ -1620,6 +1620,65 @@ class HandleComponent:
             print(e)
             return None
 
+    async def assign_cluster_number(
+        self, found_components_df: pd.DataFrame
+    ) -> pd.DataFrame | None:
+        """
+        Clusters the found components into groups
+        """
+        try:
+            found_components_df = found_components_df.copy(deep=True)
+
+            # Create a dataset from the list of found components
+            posX = []
+            posY = []
+            for index, row in found_components_df.iterrows():
+                posX.append(row["center_x"])
+                posY.append(row["center_y"])
+            nodes = np.array([posX, posY]).T
+            # flip upside down
+            nodes[:, 1] = -nodes[:, 1]
+
+            # Define a custom distance metric
+            def max_distance(node1, node2):
+                return max(abs(node1[0] - node2[0]), abs(node1[1] - node2[1]))
+
+            # Create a distance matrix
+            distance_matrix = np.array(
+                [[max_distance(node1, node2) for node2 in nodes] for node1 in nodes]
+            )
+
+            # get line types of this drawingType
+            # database:
+            prisma = Prisma()
+            await prisma.connect()
+            lineTypes = await prisma.linetype.find_many(
+                where={"drawingTypeId": self.drawing_type_id}
+            )
+
+            # n_clusters is the number of line types * its count
+            n_clusters = sum([lineType.count for lineType in lineTypes]) * 0.8
+            # parse into int
+            n_clusters = int(n_clusters)
+
+            # Perform clustering
+            clustering = AgglomerativeClustering(
+                n_clusters, affinity="precomputed", linkage="average"
+            )
+            clustering.fit(distance_matrix)
+
+            # create cluster number
+            found_components_df["cluster_number"] = clustering.labels_
+
+            # close the database connection
+            await prisma.disconnect()
+
+            return found_components_df
+
+        except Exception as e:
+            print(e)
+            return None
+
     def create_convexhull(
         self,
         line_type_component: pd.DataFrame,
