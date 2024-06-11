@@ -138,7 +138,8 @@ def predict(
                 df = pd.read_csv(f"temp/{debug_name}.csv")
 
         # create a component handler
-        component_handler = HandleComponent(df, drawing_type_id)
+        component_handler = HandleComponent(True, df, drawing_type_id, image_path)
+
         # 1) add column id & color to drawing_components_df with value of id & color from database
         predicted_components_df = asyncio.run(component_handler.get_detail_components())
         if predicted_components_df is None:
