@@ -2019,3 +2019,438 @@ class HandleComponent:
 
         finally:
             print(f"---getIdComponents() {time.time() - time_start} seconds ---")
+    def correct_missing_component_v2(
+        self,
+        found_components_df: pd.DataFrame,
+        missing_components_df: pd.DataFrame,
+        found_component_hulls: pd.DataFrame,
+    ):
+        """
+        For each cluster in clusters
+            For each component in cluster
+                For each neighbor in the same lineTypeName of the component
+                    If the component is located inside the other lineTypeName
+                        If the component is in missing_component_df
+                            print the component
+        """
+        time_start = time.time()
+        try:
+            # get all cluster_numbers
+            cluster_numbers = found_components_df["cluster_number"].unique()
+
+            for cluster_number in cluster_numbers:
+                cluster_components = found_components_df[
+                    found_components_df["cluster_number"] == cluster_number
+                ]
+
+                for i, cluster_component in cluster_components.iterrows():
+                    # get line type name
+                    this_line_type_name = cluster_component["lineTypeName"]
+
+                    # get the neighbors of the component
+                    neighbors = found_components_df[
+                        found_components_df["lineTypeName"] == this_line_type_name
+                    ]
+
+                    # exclude the component itself
+                    neighbors = neighbors[
+                        neighbors["name"] != cluster_component["name"]
+                    ]
+
+                    located_inside_another_line_type = False
+                    for j, neighbor in neighbors.iterrows():
+                        for k, hull in found_component_hulls.iterrows():
+                            # skip if the hull is the same line type name
+                            if hull["foundLineTypeName"] == this_line_type_name:
+                                continue
+
+                            # get area of hull of the neighbor
+                            hull_area = ShapelyPolygon(hull["points"])
+
+                            # get neighbor name
+                            neighbor_name = neighbor["name"]
+
+                            # get the position of the neighbor
+                            neighbor_position = ShapelyPoint(
+                                neighbor["center_x"], neighbor["center_y"]
+                            )
+
+                            # if the component is in the area of hull of the neighbor
+                            if neighbor_position.within(hull_area):
+
+                                # if not the same line type name
+                                if (
+                                    neighbor["lineTypeName"]
+                                    != hull["foundLineTypeName"]
+                                ):
+                                    # if the component is in missing components
+                                    if (
+                                        neighbor["name"]
+                                        in missing_components_df["name"].values
+                                    ):
+                                        # plot the neighbor in the image
+                                        fig, ax = plt.subplots()
+                                        image = mmcv.imread(self.image_path)
+                                        ax.imshow(image)
+
+                                        # plot the component area
+                                        rect = Rectangle(
+                                            (
+                                                cluster_component["xmin"],
+                                                cluster_component["ymin"],
+                                            ),
+                                            cluster_component["xmax"]
+                                            - cluster_component["xmin"],
+                                            cluster_component["ymax"]
+                                            - cluster_component["ymin"],
+                                            linewidth=1,
+                                            edgecolor="b",
+                                            facecolor="none",
+                                        )
+                                        ax.add_patch(rect)
+
+                                        # plot the neighbor area
+                                        polygon = Polygon(
+                                            hull["points"],
+                                            edgecolor="r",
+                                            facecolor="none",
+                                        )
+                                        ax.add_patch(polygon)
+
+                                        rect = Rectangle(
+                                            (neighbor["xmin"], neighbor["ymin"]),
+                                            neighbor["xmax"] - neighbor["xmin"],
+                                            neighbor["ymax"] - neighbor["ymin"],
+                                            linewidth=1,
+                                            edgecolor="r",
+                                            facecolor="none",
+                                        )
+                                        ax.add_patch(rect)
+                                        ax.text(
+                                            neighbor["xmin"],
+                                            neighbor["ymin"],
+                                            f"{neighbor['name']} {neighbor['lineTypeName']}",
+                                            fontsize=8,
+                                            color="r",
+                                        )
+                                        plt.show()
+                                        plt.close()
+
+                                        print(
+                                            f"missing_component: {missing_components_df[missing_components_df['name'] == neighbor_name]}"
+                                        )
+                                        located_inside_another_line_type = True
+
+            return missing_components_df
+
+        except Exception as e:
+            print(e)
+            raise e
+
+        finally:
+            print(f"---getIdComponents() {time.time() - time_start} seconds ---")
+
+    def correct_missing_component_v3(
+        self,
+        found_components_df: pd.DataFrame,
+        missing_components_df: pd.DataFrame,
+        found_component_hulls: pd.DataFrame,
+    ):
+        """
+        For missing_component in missing_components
+            For lineTypeName in lineTypeNames of found_components that has component with the same name as missing_component
+                Get the mandatory component of the lineTypeName
+                Get the component that has the same name as missing_component
+                Get the distance between the mandatory component and the component that has the same name as missing_component
+
+        """
+
+        time_start = time.time()
+        try:
+            # get all missing components
+            for i, missing_component in missing_components_df.iterrows():
+                # if the missing component is already checked, then skip
+                if missing_component["checked"]:
+                    continue
+
+                # get the name of the missing component
+                missing_component_name = missing_component["name"]
+
+                # get the line type names of the found components that has the same name as the missing component
+                line_type_names = found_components_df[
+                    found_components_df["name"] == missing_component_name
+                ]["lineTypeName"].unique()
+
+                # create a list to store a pair of line type name and distance
+                distances = []
+
+                for line_type_name in line_type_names:
+                    # get the mandatory component of the line type name
+                    mandatory_component = found_components_df[
+                        (found_components_df["lineTypeName"] == line_type_name)
+                        & (found_components_df["componentType"] == "mandatory")
+                    ]
+
+                    # get the component that has the same name as the missing component
+                    component = found_components_df[
+                        (found_components_df["name"] == missing_component_name)
+                        & (found_components_df["lineTypeName"] == line_type_name)
+                    ]
+
+                    # get the distance between the mandatory component and the component
+                    distance = (
+                        (
+                            mandatory_component["center_x"].values[0]
+                            - component["center_x"].values[0]
+                        )
+                        ** 2
+                        + (
+                            mandatory_component["center_y"].values[0]
+                            - component["center_y"].values[0]
+                        )
+                        ** 2
+                    ) ** 0.5
+
+                    # add the line type name and distance to the list
+                    distances.append((line_type_name, distance))
+
+                # sort the list by distance, order by ascending
+                distances = sorted(distances, key=lambda x: x[1])
+
+                if len(distances) > 0:
+                    # print the missing component name
+                    print(f"missing component name: {missing_component_name}")
+                    # print the longest distance line type name
+                    print(f"longest distance line type name: {distances[-1][0]}")
+
+                else:
+                    print(f"missing component name: {missing_component_name}")
+                    print(
+                        f"longest distance line type name: {missing_component['lineTypeName']}"
+                    )
+
+                if len(distances) > 0:
+                    # the longest distance line type name is the correct line type name of the missing component
+                    missing_components_df.at[
+                        missing_components_df[
+                            missing_components_df["name"] == missing_component_name
+                        ].index[0],
+                        "lineTypeName",
+                    ] = distances[-1][0]
+
+                    # checked to true
+                    missing_components_df.at[
+                        missing_components_df[
+                            missing_components_df["name"] == missing_component_name
+                        ].index[0],
+                        "checked",
+                    ] = True
+
+            # print the missing components
+            print(missing_components_df)
+
+            return
+
+        except Exception as e:
+            print(e)
+            raise e
+
+        finally:
+            print(
+                f"---correct_missing_component_v2() {time.time() - time_start} seconds ---"
+            )
+
+    def correct_missing_component_v4(
+        self,
+        found_components_df: pd.DataFrame,
+        missing_components_df: pd.DataFrame,
+        found_component_hulls: pd.DataFrame,
+    ):
+        """
+        For missing_component in missing_components
+            For lineTypeName in lineTypeNames of found_components that has component with the same name as missing_component
+                Get the mandatory component of the lineTypeName
+                Get the component that has the same name as missing_component
+                Get the distance between the mandatory component and the component that has the same name as missing_component
+
+        """
+
+        time_start = time.time()
+        try:
+            # get all missing components
+            for i, missing_component in missing_components_df.iterrows():
+
+                # get the name of the missing component
+                missing_component_name = missing_component["name"]
+
+                # get the line type names of the found components that has the same name as the missing component
+                line_type_names = found_components_df[
+                    found_components_df["name"] == missing_component_name
+                ]["lineTypeName"].unique()
+
+                for line_type_name in line_type_names:
+                    # create a list to store a pair of line type name and distance
+                    distances = []
+
+                    # get the mandatory component of the line type name
+                    mandatory_component = found_components_df[
+                        (found_components_df["lineTypeName"] == line_type_name)
+                        & (found_components_df["componentType"] == "mandatory")
+                    ]
+
+                    # get components that has the same name as the missing component
+                    same_name_components = found_components_df[
+                        (found_components_df["name"] == missing_component_name)
+                    ]
+
+                    for i, same_name_component in same_name_components.iterrows():
+                        # get the distance between the mandatory component and the component
+                        distance = (
+                            (
+                                mandatory_component["center_x"].values[0]
+                                - same_name_component["center_x"]
+                            )
+                            ** 2
+                            + (
+                                mandatory_component["center_y"].values[0]
+                                - same_name_component["center_y"]
+                            )
+                            ** 2
+                        ) ** 0.5
+
+                        # append name, line type name mandatory component, line type name component, distance
+                        distances.append(
+                            [
+                                same_name_component["name"],
+                                line_type_name,
+                                same_name_component["lineTypeName"],
+                                int(distance),
+                            ]
+                        )
+
+                    if len(distances) > 0:
+                        # sort the list by distance, order by ascending
+                        distances = sorted(distances, key=lambda x: x[3])
+
+                        print(distances)
+                        print()
+
+            # print the missing components
+            print(missing_components_df)
+
+            return
+
+        except Exception as e:
+            print(e)
+            raise e
+
+        finally:
+            print(
+                f"---correct_missing_component_v2() {time.time() - time_start} seconds ---"
+            )
+
+    def correct_missing_component_v5(
+        self,
+        found_components_df: pd.DataFrame,
+        missing_components_df: pd.DataFrame,
+        found_component_hulls: pd.DataFrame,
+        clusternumber_convexhull: pd.DataFrame,
+    ):
+        """
+        For each missing component in missing_components
+            For each line type name in lineTypeNames of found_components that has component with the same name as missing_component
+                Get the mandatory component of the lineTypeName
+                Get the component that has the same name as missing_component
+                Get the distance between the mandatory component and the component that has the same name as missing_component
+                If the distance is less than 100, then correct the missing component
+        """
+        time_start = time.time()
+        try:
+            # display the found component hulls
+            # get unique color
+            unique_colors = plt.cm.get_cmap("viridis", len(found_component_hulls))
+
+            fig, ax = plt.subplots()
+            image = mmcv.imread(self.image_path)
+            ax.imshow(image)
+            for i, hull in found_component_hulls.iterrows():
+                # polygon = Polygon(
+                #     hull["points"],
+                #     edgecolor=unique_colors(i),
+                #     facecolor=unique_colors(i),
+                # )
+                # make polygon transparent
+                polygon = Polygon(
+                    hull["points"],
+                    edgecolor=unique_colors(i),  # type: ignore
+                    facecolor=unique_colors(i),  # type: ignore
+                    alpha=0.5,
+                )
+                ax.add_patch(polygon)
+                ax.text(
+                    hull["points"][0][0],
+                    hull["points"][0][1],
+                    f"{hull['foundLineTypeName']}",
+                    fontsize=8,
+                    color="r",
+                )
+            plt.show()
+            plt.close()
+
+            # get all missing components
+            for i, missing_component in missing_components_df.iterrows():
+                # get the name of the missing component
+                missing_component_name = missing_component["name"]
+
+                # get the line type names of the found components that has the same name as the missing component
+                line_type_names = found_components_df[
+                    found_components_df["name"] == missing_component_name
+                ]["lineTypeName"].unique()
+
+                # plot the hulls of this line type name
+                fig, ax = plt.subplots()
+                image = mmcv.imread(self.image_path)
+                ax.imshow(image)
+                for i, hull in found_component_hulls.iterrows():
+                    if hull["foundLineTypeName"] in line_type_names:
+                        polygon = Polygon(
+                            hull["points"],
+                            edgecolor="r",
+                            facecolor="none",
+                        )
+                        ax.add_patch(polygon)
+                        ax.text(
+                            hull["points"][0][0],
+                            hull["points"][0][1],
+                            f"{hull['foundLineTypeName']}",
+                            fontsize=8,
+                            color="r",
+                        )
+
+                # plot the clusternumber_convexhull
+                for i, hull in clusternumber_convexhull.iterrows():
+                    polygon = Polygon(
+                        hull["points"],
+                        edgecolor="b",
+                        facecolor="none",
+                    )
+                    ax.add_patch(polygon)
+                    ax.text(
+                        hull["points"][0][0],
+                        hull["points"][0][1],
+                        f"{hull['cluster_name']}",
+                        fontsize=8,
+                        color="b",
+                    )
+
+                plt.show()
+                plt.close()
+
+            return
+
+        except Exception as e:
+            print(e)
+            raise e
+
+        finally:
+            print(f"---getIdComponents() {time.time() - time_start} seconds ---")
