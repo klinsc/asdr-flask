@@ -145,12 +145,15 @@ def predict(
         if predicted_components_df is None:
             raise Exception("Error in get detail components")
 
+        # 1.1) fill black color on the image
+        asyncio.run(component_handler.fill_black_color(predicted_components_df))
+
         # 2) diagnose the components
         (
             found_components_df,
             remaining_components_df,
             missing_components_df,
-        ) = asyncio.run(component_handler.diagnose_components(image_path))
+        ) = asyncio.run(component_handler.diagnose_components_v2(image_path, file_name))
         if (
             found_components_df is None
             or remaining_components_df is None
