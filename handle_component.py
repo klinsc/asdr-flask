@@ -1250,6 +1250,88 @@ class HandleComponent:
         # save hires image
         plt.savefig("found_components_hires.png", dpi=300)
         plt.close()
+
+    def display_cluster(
+        self,
+        found_components_df: pd.DataFrame,
+        remaining_components_df: pd.DataFrame,
+        missing_components_df: pd.DataFrame,
+        image_path: str,
+    ):
+        # # plot the found components with their line type name and number, different colors for each line type name and number
+        # get unique line type names
+        unique_line_type_names = found_components_df["cluster_number"].unique()
+        # get unique colors
+        unique_colors = plt.cm.get_cmap("nipy_spectral", len(unique_line_type_names))
+        # add color to the found components in new column
+        for i, line_type_name in enumerate(unique_line_type_names):
+            found_components_df.loc[
+                found_components_df["cluster_number"] == line_type_name,
+                "cluster_numberColor",
+            ] = colors.to_hex(unique_colors(i))
+
+        # plot the found components
+        fig, ax = plt.subplots()
+        image = mmcv.imread(image_path)
+        ax.imshow(image)
+        for i, component in found_components_df.iterrows():
+            rect = Rectangle(
+                (component["xmin"], component["ymin"]),
+                component["xmax"] - component["xmin"],
+                component["ymax"] - component["ymin"],
+                linewidth=1,
+                edgecolor=component["cluster_numberColor"],
+                facecolor="none",
+            )
+            ax.add_patch(rect)
+            ax.text(
+                component["xmin"],
+                component["ymin"],
+                f"{component['name']}",
+                fontsize=8,
+                color=component["cluster_numberColor"],
+            )
+            ax.text(
+                component["xmin"],
+                component["ymin"] - 40,
+                f"{component['lineTypeName']}-{component['cluster_number']}",
+                fontsize=8,
+                color=component["cluster_numberColor"],
+            )
+
+        # plot the missing components on top left corner one by one
+        ax.text(0, 0, "Missing components", fontsize=10, color="r")
+        for i, component in missing_components_df.iterrows():
+            ax.text(
+                0,
+                10 + i * 200,  # type: ignore
+                f"{component['name']} {component['lineTypeName']}",
+                fontsize=8,
+                color="r",
+            )
+
+        # plot the remaining components on top right corner one by one
+        ax.text(
+            0,
+            20 + len(missing_components_df) * 10,
+            "Remaining components",
+            fontsize=10,
+            color="r",
+        )
+        for i, component in remaining_components_df.iterrows():
+            ax.text(
+                0,
+                30 + len(missing_components_df) * 10 + i * 200,  # type: ignore
+                f"{component['name']}",
+                fontsize=8,
+                color="r",
+            )
+
+        # plt.show()
+        # save hires image
+        plt.savefig("cluster_found_components_hires.png", dpi=300)
+        plt.close()
+
     def sort_line_type_components(self, found_components_df: pd.DataFrame):
         """
         Sorts the line type components by swapping the closest nodes
