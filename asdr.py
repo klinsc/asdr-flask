@@ -88,6 +88,10 @@ def predict(
             if not drawing_type_id:
                 return make_response("Bad Request: drawingTypeId is required", 400)
 
+            file_name = request.args.get("fileName")
+            if not file_name:
+                return make_response("Bad Request: fileName is required", 400)
+
             # get the images from the request
             file = request.files["image"]
 
@@ -97,7 +101,8 @@ def predict(
                 return make_response("Bad Request: file is required", 400)
 
             # generate a random name for the image
-            image = HandleImage(byte_arr)
+            file_name = file_name.split(".")[0]  # type: ignore
+            image = HandleImage(byte_arr, file_name)
             image_path = image.get_image_path()
 
         if not image_path:
