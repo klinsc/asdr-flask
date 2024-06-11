@@ -50,26 +50,22 @@ def upload():
         file = request.files["image"]
         # convert the pdf file to images
         images = convert_from_bytes(file.read(), dpi=300, fmt="jpeg")
+
+        # get the name of an image
+        image_name = file.filename.split(".")[0]  # type: ignore
+
         # save the images to disk
         image = images[0]
-        image.save(f"images/image.jpeg", "JPEG")
+        image.save(f"images/{image_name}.jpeg", "JPEG")
 
-    except Exception as e:
-        print(e)
-
-        return make_response(f"Internal Server Error: {e}", 500)
-
-    try:
-        # read the image from disk
-        image = None
-        with open("images/image.jpeg", "rb") as f:
+        with open(f"images/{image_name}.jpeg", "rb") as f:
             image = f.read()
 
         if not image:
             return make_response("Internal Server Error: image not found", 500)
 
         # remove the image from disk
-        os.remove("images/image.jpeg")
+        os.remove(f"images/{image_name}.jpeg")
 
         # return images to the client
         return make_response(image, 200, {"Content-Type": "image/jpeg"})
