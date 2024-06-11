@@ -45,11 +45,11 @@ class DrawingComponentsDf(BaseModel):
 
 class HandleComponent:
     def __init__(
-        self, debug: bool, df: pd.DataFrame, drawing_type_id: str, image_path: str
+        self, debug: bool, predicted_components_df: pd.DataFrame, drawing_type_id: str, image_path: str
     ):
         try:
             self.debug = debug
-            self.predicted_components_df = df.copy(deep=True).reset_index()
+            self.predicted_components_df = predicted_components_df.copy(deep=True).reset_index()
             self.drawing_type_id = drawing_type_id
             self.image_path = image_path
         except Exception as e:
