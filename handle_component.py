@@ -1356,6 +1356,11 @@ class HandleComponent:
                     sorted_line_type_components_df["lineTypeId"] == line_type_id
                 ]
 
+                # move componentType "mandatory" to the top
+                line_type_components_df = line_type_components_df.sort_values(
+                    by=["componentType"], ascending=True
+                )
+
                 # get all unique groups of the line type id
                 groups = line_type_components_df["group"].unique()
 
