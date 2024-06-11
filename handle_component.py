@@ -1798,21 +1798,18 @@ class HandleComponent:
         """
         time_start = time.time()
         try:
-            # group by line type id & group and generate new uuid for each group
-            groups = pd.DataFrame(
-                found_components_df.groupby(["lineTypeIdNumber"]).size().reset_index()
-            )
-            groups["key"] = [str(uuid.uuid4())[:8] for i in range(len(groups))]
+            # group by lineTypeName
+            line_type_names = found_components_df["lineTypeName"].unique()
 
             # create a new dataframe to store the hull of each line type id
             hulls = pd.DataFrame(
-                columns=["foundLineTypeId", "points", "key", "foundLineTypeName"]
+                columns=["foundLineTypeId", "points", "foundLineTypeName"]
             )
 
-            for index, row in groups.iterrows():
+            for line_type_name in line_type_names:
                 # get the line type components of the line type id
                 line_type_components = found_components_df[
-                    found_components_df["lineTypeIdNumber"] == row["lineTypeIdNumber"]
+                    found_components_df["lineTypeName"] == line_type_name
                 ]
 
                 # skip for line type components length < 3
@@ -1822,23 +1819,21 @@ class HandleComponent:
                 # get the convex hull of the line type components
                 hull = self.create_convexhull(line_type_components)
 
-                # get the line type name from db
-                prisma = Prisma()
-                await prisma.connect()
-                line_type_id = row["lineTypeIdNumber"].split("-")[0]
-                line_type = await prisma.linetype.find_first(where={"id": line_type_id})
-                if line_type == None:
-                    raise Exception("Line type not found")
+                # get points in sequence of (x, y [,z])
+                points = []
+                for point in hull[0]:
+                    points.append((point["x"], point["y"]))
 
                 hulls = pd.concat(
                     [
                         hulls,
                         pd.DataFrame(
                             {
-                                "foundLineTypeId": [row["lineTypeIdNumber"]],
-                                "points": [hull[0]],
-                                "key": [row["key"]],
-                                "foundLineTypeName": [line_type.name],
+                                "foundLineTypeId": [
+                                    line_type_components["lineTypeId"].values[0]
+                                ],
+                                "points": [points],
+                                "foundLineTypeName": [line_type_name],
                             }
                         ),
                     ],
