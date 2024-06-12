@@ -728,7 +728,7 @@ class HandleComponent:
         finally:
             print(f"---diagnose_components() {time.time() - time_start} seconds ---")
 
-    async def diagnose_components_v2(self, image_path: str, file_name: str):
+    async def diagnose_components_v2(self, image_path: str, file_name: str | None):
         """
         Order by index asc, for both line types and line type components.
         Loop through, check if the component exists in the predicted_components_df.
@@ -741,6 +741,28 @@ class HandleComponent:
         """
         time_start = time.time()
         try:
+            if self.debug == True:
+                # assert that the csvs exist
+                if (
+                    os.path.exists(f"csvs/{file_name}_found_df.csv")
+                    and os.path.exists(f"csvs/{file_name}_remaining_df.csv")
+                    and os.path.exists(f"csvs/{file_name}_missing_df.csv")
+                ):
+                    # load df from csvs
+                    found_components_df = pd.read_csv(f"csvs/{file_name}_found_df.csv")
+                    remaining_components_df = pd.read_csv(
+                        f"csvs/{file_name}_remaining_df.csv"
+                    )
+                    missing_components_df = pd.read_csv(
+                        f"csvs/{file_name}_missing_df.csv"
+                    )
+
+                    return (
+                        found_components_df,
+                        remaining_components_df,
+                        missing_components_df,
+                    )
+
             # database:
             prisma = Prisma()
             await prisma.connect()
