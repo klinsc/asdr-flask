@@ -1403,7 +1403,7 @@ class HandleComponent:
             interactive=True,
         )
 
-        # plt.show()
+        plt.show()
         # save hires image
         plt.savefig("found_components_hires.png", dpi=300)
         plt.close()
