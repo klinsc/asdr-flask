@@ -276,10 +276,13 @@ def main():
     args = parse_args()
 
     if args.debug == "true":
+        file_name = args.image_path.split("/")[-1].split(".")[0]
         predict(
             debug=True,
             image_path=args.image_path,
             drawing_type_id="clwx2950z0000348civ5vsm84",
+            # drawing_type_id="clx5t9vh9000034e0qfhrlnzm",
+            file_name=file_name,
         )
 
     else:
