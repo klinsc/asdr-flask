@@ -1133,6 +1133,9 @@ class HandleComponent:
                                     ignore_index=True,
                                 )
 
+                            print(
+                                f"line_type: {line_type.name}, remaining_components_df: {len(remaining_components_df)}, found_components_df: {len(found_components_df)}, missing_components_df: {len(missing_components_df)}"
+                            )
             # close the database connection
             await prisma.disconnect()
 
@@ -1158,7 +1161,7 @@ class HandleComponent:
             return None, None, None
 
         finally:
-            print(f"---diagnose_components() {time.time() - time_start} seconds ---")
+            print(f"---diagnose_components_v2() {time.time() - time_start} seconds ---")
 
     # Function to calculate distance and find path
     def process_component(
@@ -1285,7 +1288,6 @@ class HandleComponent:
             # eclick and erelease are the mouse click and release events
             x1, y1 = eclick.xdata, eclick.ydata
             x2, y2 = erelease.xdata, erelease.ydata
-            print(f"Rectangle selected from ({x1}, {y1}) to ({x2}, {y2})")
 
             # the components in the selected rectangle
             components_in_rectangle = found_components_df[
@@ -1327,6 +1329,67 @@ class HandleComponent:
                         s=100,
                         marker="x",
                     )
+
+                # get leftMargin, topMargin, rightMargin, bottomMargin from the mandatory components to rectangle
+                leftMargin = mandatory_components_in_rectangle["center_x"].min() - xmin
+                topMargin = mandatory_components_in_rectangle["center_y"].min() - ymin
+                rightMargin = xmax - mandatory_components_in_rectangle["center_x"].max()
+                bottomMargin = (
+                    ymax - mandatory_components_in_rectangle["center_y"].max()
+                )
+
+                # # draw the margin lines from the mandatory components to the rectangle
+                for i, component in mandatory_components_in_rectangle.iterrows():
+                    ax.plot(
+                        [component["center_x"], component["center_x"] - leftMargin],
+                        color="r",
+                    )
+                    ax.text(
+                        component["center_x"] - leftMargin,
+                        component["center_y"],
+                        f"{leftMargin}",
+                        fontsize=8,
+                        color="r",
+                    )
+                    ax.plot(
+                        [component["center_x"], component["center_x"] + rightMargin],
+                        color="r",
+                    )
+                    ax.text(
+                        component["center_x"] + rightMargin,
+                        component["center_y"],
+                        f"{rightMargin}",
+                        fontsize=8,
+                        color="r",
+                    )
+                    ax.plot(
+                        [component["center_x"], component["center_x"]],
+                        [component["center_y"], component["center_y"] - topMargin],
+                        color="r",
+                    )
+                    ax.text(
+                        component["center_x"],
+                        component["center_y"] - topMargin,
+                        f"{topMargin}",
+                        fontsize=8,
+                        color="r",
+                    )
+                    ax.plot(
+                        [component["center_x"], component["center_x"]],
+                        [component["center_y"], component["center_y"] + bottomMargin],
+                        color="r",
+                    )
+                    ax.text(
+                        component["center_x"],
+                        component["center_y"] + bottomMargin,
+                        f"{bottomMargin}",
+                        fontsize=8,
+                        color="r",
+                    )
+
+                # print the leftMargin, topMargin, rightMargin, bottomMargin
+                print(f"lineTypeName: {component['lineTypeName']}")
+                print(f"{leftMargin}, {topMargin}, {rightMargin}, {bottomMargin}")
 
         # Create RectangleSelector
         rect_selector = RectangleSelector(
