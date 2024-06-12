@@ -2710,7 +2710,7 @@ class HandleComponent:
 
                         # get the area of the hull, and make it broader by 10%
                         hull_area = ShapelyPolygon(hull["points"]).buffer(
-                            0.1, cap_style=3 # type: ignore
+                            0.1, cap_style=3  # type: ignore
                         )
 
                         # if the component is located inside the hull
@@ -2759,7 +2759,7 @@ class HandleComponent:
                 # get hulls in clusternumber_convexhull that contain the component
                 hull_to_plot = []
                 for i, hull in clusternumber_convexhull.iterrows():
-                    hull_area = ShapelyPolygon(hull["points"]).buffer(0.1, cap_style=3)
+                    hull_area = ShapelyPolygon(hull["points"]).buffer(0.1, cap_style=3)  # type: ignore
                     for position in component_positions:
                         component_position = ShapelyPoint(position[0], position[1])
                         if component_position.within(hull_area):
