@@ -293,26 +293,6 @@ class HandleComponent:
                 self.predicted_components_df.index
             )
 
-            # get the highest y of 22_breaker
-            index_highest_22_breaker = -1
-            for o, row in remaining_components_df.iterrows():
-                if row["name"] == "22_breaker":
-                    if index_highest_22_breaker == -1:
-                        index_highest_22_breaker = o
-                    elif (
-                        row["center_y"]
-                        < remaining_components_df.loc[
-                            index_highest_22_breaker, "center_y"
-                        ]  # type: ignore
-                    ):  # type: ignore
-                        index_highest_22_breaker = o
-            # get the highest y of 22_breaker
-            highest_22_breaker_y = 5000
-            if index_highest_22_breaker != -1:
-                highest_22_breaker_y = remaining_components_df.loc[
-                    index_highest_22_breaker, "center_y"
-                ]  # type: ignore
-
             # loop through line_types to diagnose the LineTypeComponent
             for k in range(len(line_types)):
                 line_type = line_types[k]
