@@ -193,12 +193,25 @@ def predict(
             component_handler.get_found_convexhull(found_components_df)
         )
 
-        # 6) correct missing components (The modification of correcting is directly affect to missing_components_df)
-        asyncio.run(
-            component_handler.correct_missing_component(
-                clustered_found_components_df, missing_components_df, clustered_hulls
-            )
-        )
+        # clusternumber_convexhull = asyncio.run(
+        #     component_handler.get_clusternumber_convexhull(
+        #         found_components_df, missing_components_df
+        #     )
+        # )
+
+        # component_handler.correct_missing_component_v5(
+        #     found_components_df,
+        #     missing_components_df,
+        #     found_component_hulls,
+        #     clusternumber_convexhull,
+        # )
+
+        # component_handler.correct_missing_component_v6(
+        #     found_components_df,
+        #     missing_components_df,
+        #     found_component_hulls,
+        #     clusternumber_convexhull,
+        # )
 
         # return all dfs to the client in json format
         predicted_components_json = predicted_components_df.to_json(orient="records")
