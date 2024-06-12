@@ -142,6 +142,20 @@ class HandleComponent:
             # get the image
             image = mmcv.imread(self.image_path)
 
+            # get the highest y of 22_breaker
+            index_highest_22_breaker = -1
+            for o, row in predicted_components_df.iterrows():
+                if row["name"] == "22_breaker":
+                    if index_highest_22_breaker == -1:
+                        index_highest_22_breaker = o
+                    elif (
+                        row["center_y"]
+                        < predicted_components_df.loc[
+                            index_highest_22_breaker, "center_y"
+                        ]  # type: ignore
+                    ):  # type: ignore
+                        index_highest_22_breaker = o
+
             # loop through the components
             for index, row in predicted_components_df.iterrows():
                 # get the bounding box
@@ -157,6 +171,36 @@ class HandleComponent:
 
                 # fill the bounding box with white color
                 image[ymin:ymax, xmin:xmax] = [255, 255, 255]
+
+                # # if the component name is 22_tie, then draw a white rect in the x-axis from the left to the right of the image
+                # if (
+                #     row["index"] == index_highest_22_breaker
+                #     and row["name"] == "22_breaker"
+                # ):
+                #     image_width = image.shape[1]
+
+                #     point_1 = (0, int(row["ymin"]))
+                #     point_2 = (image_width, int(row["ymin"]))
+                #     point_3 = (image_width, int(row["ymax"]))
+                #     point_4 = (0, int(row["ymax"]))
+                #     points = np.array([point_1, point_2, point_3, point_4])
+                #     cv2.fillPoly(image, [points], (255, 255, 255))
+
+                #     # draw other 2 reacangles above and below the 22_breaker with the same size
+                #     height = int(row["ymax"] - row["ymin"])
+                #     point_1 = (0, int(row["ymin"] - height))
+                #     point_2 = (image_width, int(row["ymin"] - height))
+                #     point_3 = (image_width, int(row["ymin"]))
+                #     point_4 = (0, int(row["ymin"]))
+                #     points = np.array([point_1, point_2, point_3, point_4])
+                #     cv2.fillPoly(image, [points], (255, 255, 255))
+
+                #     point_1 = (0, int(row["ymax"]) + height)
+                #     point_2 = (image_width, int(row["ymax"]) + height)
+                #     point_3 = (image_width, int(row["ymax"]))
+                #     point_4 = (0, int(row["ymax"]))
+                #     points = np.array([point_1, point_2, point_3, point_4])
+                #     cv2.fillPoly(image, [points], (255, 255, 255))
 
                 # draw the bounding box with black color
                 cv2.rectangle(image, (xmin, ymin), (xmax, ymax), (0, 0, 0), 2)
