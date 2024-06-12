@@ -78,7 +78,10 @@ def upload():
 
 @app.route("/predict", methods=["POST"])
 def predict(
-    debug=False, image_path: str | None = None, drawing_type_id: str | None = None
+    debug=False,
+    image_path: str | None = None,
+    drawing_type_id: str | None = None,
+    file_name: str | None = None,
 ):
     start_time = time.time()
     try:
@@ -138,6 +141,7 @@ def predict(
                 df = pd.read_csv(f"temp/{debug_name}.csv")
 
         # create a component handler
+        # debug = True
         component_handler = HandleComponent(True, df, drawing_type_id, image_path)
 
         # 1) add column id & color to drawing_components_df with value of id & color from database
@@ -153,7 +157,8 @@ def predict(
             found_components_df,
             remaining_components_df,
             missing_components_df,
-        ) = asyncio.run(component_handler.diagnose_components_v2(image_path, file_name))
+        ) = asyncio.run(component_handler.diagnose_components(image_path))
+        # ) = asyncio.run(component_handler.diagnose_components_v2(image_path, file_name))
         if (
             found_components_df is None
             or remaining_components_df is None
@@ -161,30 +166,27 @@ def predict(
         ):
             raise Exception("Error in diagnose components")
 
-        # # 3) sort the line type components
-        # sorted_line_type_components_df = component_handler.sort_line_type_components(
-        #     found_components_df
+        # component_handler.display(
+        #     found_components_df,
+        #     remaining_components_df,
+        #     missing_components_df,
+        #     image_path,
         # )
-        # if sorted_line_type_components_df is None:
-        #     raise Exception("Error in sort line type components")
 
-        # # validate that found_components_df + remaining_components_df = predicted_components_df
-        # if len(predicted_components_df) != len(sorted_line_type_components_df) + len(
-        #     remaining_components_df
-        # ):
-        #     raise Exception("Error in sort: found + remaining != predicted")
-
-        # 4) cluster the components
-        clustered_found_components_df = asyncio.run(
-            component_handler.get_clustered_components(found_components_df)
+        found_components_df = asyncio.run(
+            component_handler.assign_cluster_number(
+                found_components_df,
+            )
         )
-        if clustered_found_components_df is None:
-            raise Exception("Error in cluster components")
+        if found_components_df is None:
+            raise Exception("Error in assign cluster number")
 
-        # 5) get the hulls of the clustered components
-        clustered_hulls = asyncio.run(
-            component_handler.get_clustered_convexhull(clustered_found_components_df)
-        )
+        # component_handler.display_cluster(
+        #     found_components_df,
+        #     remaining_components_df,
+        #     missing_components_df,
+        #     image_path,
+        # )
 
         # 5.1) get the hulls of the found components
         found_component_hulls = asyncio.run(
