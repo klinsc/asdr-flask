@@ -301,6 +301,8 @@ class HandleComponent:
                     # loop through the LineTypeComponents of the line type
                     mandatory_center_xy = [0, 0]
 
+                    mandatory_bbox = [0, 0, 0, 0]
+
                     # print the length of dataframes
                     print(
                         f"line_type: {line_type.name}, remaining_components_df: {len(remaining_components_df)}, found_components_df: {len(found_components_df)}, missing_components_df: {len(missing_components_df)}"
@@ -356,6 +358,44 @@ class HandleComponent:
                                         (ymin + ymax) / 2,
                                     ]
 
+                                    marginLeft, marginTop, marginRight, marginBottom = (
+                                        line_type.marginLeft,
+                                        line_type.marginTop,
+                                        line_type.marginRight,
+                                        line_type.marginBottom,
+                                    )
+
+                                    mandatory_bbox = [
+                                        mandatory_center_xy[0] - marginLeft,
+                                        mandatory_center_xy[1] - marginTop,
+                                        mandatory_center_xy[0] + marginRight,
+                                        mandatory_center_xy[1] + marginBottom,
+                                    ]
+
+                                    # # plot the mandatory center point and bounding box
+                                    # fig, ax = plt.subplots()
+                                    # image = mmcv.imread(image_path)
+                                    # ax.imshow(image)
+                                    # ax.scatter(
+                                    #     mandatory_center_xy[0],
+                                    #     mandatory_center_xy[1],
+                                    #     color="r",
+                                    #     s=100,
+                                    #     marker="x",
+                                    # )
+                                    # rect = Rectangle(
+                                    #     (mandatory_bbox[0], mandatory_bbox[1]),
+                                    #     mandatory_bbox[2] - mandatory_bbox[0],
+                                    #     mandatory_bbox[3] - mandatory_bbox[1],
+                                    #     linewidth=1,
+                                    #     edgecolor="r",
+                                    #     facecolor="none",
+                                    # )
+                                    # ax.add_patch(rect)
+                                    # plt.savefig("mandatory_center_point.png")
+                                    # plt.show()
+                                    # plt.close()
+
                                 # if the fisrt component is not mandatory, then find the closest component to the mandatory component
                                 elif (
                                     mandatory_center_xy == [0, 0]
@@ -396,6 +436,20 @@ class HandleComponent:
                                         index, "componentType"
                                     ] = "mandatory"
 
+                                    marginLeft, marginTop, marginRight, marginBottom = (
+                                        line_type.marginLeft,
+                                        line_type.marginTop,
+                                        line_type.marginRight,
+                                        line_type.marginBottom,
+                                    )
+
+                                    mandatory_bbox = [
+                                        mandatory_center_xy[0] - marginLeft,
+                                        mandatory_center_xy[1] - marginTop,
+                                        mandatory_center_xy[0] + marginRight,
+                                        mandatory_center_xy[1] + marginBottom,
+                                    ]
+
                                 else:
                                     # calculate the distance between the mandatory component and the remaining components
                                     remaining_components_df["distance"] = (
@@ -419,22 +473,20 @@ class HandleComponent:
                                         - mandatory_center_xy[1]
                                     )
 
-                                    # get the busbar type
-                                    busbar_type = line_type.name.split("_")[0]
-                                    # if busbar_type == "115", then set distance to 0 for the components below the highest 22_breaker
-                                    if busbar_type == "115":
-                                        remaining_components_df.loc[
-                                            remaining_components_df["center_y"]
-                                            > highest_22_breaker_y,
-                                            "distance",
-                                        ] = 5000
-                                    # if busbar_type == "22", then set distance to 0 for the components above the highest 22_breaker
-                                    if busbar_type == "22":
-                                        remaining_components_df.loc[
-                                            remaining_components_df["center_y"]
-                                            < highest_22_breaker_y,
-                                            "distance",
-                                        ] = 5000
+                                    # if a component is located outside the mandatory bounding box, then set the distance to 5000
+                                    for (
+                                        index,
+                                        row,
+                                    ) in remaining_components_df.iterrows():
+                                        if (
+                                            row["center_x"] < mandatory_bbox[0]
+                                            or row["center_x"] > mandatory_bbox[2]
+                                            or row["center_y"] < mandatory_bbox[1]
+                                            or row["center_y"] > mandatory_bbox[3]
+                                        ):
+                                            remaining_components_df.at[
+                                                index, "distance"
+                                            ] = 5000
 
                                     # get the closest component to the mandatory component with distance != 5000 with the same name
                                     index = -1
@@ -454,17 +506,7 @@ class HandleComponent:
                                                         index, "distance"
                                                     ]  # type: ignore
                                                 ):
-                                                    # if (
-                                                    #     line_type.name == "22_incoming"
-                                                    #     and component["distance_x"]
-                                                    #     > 300
-                                                    # ):
-                                                    #     continue
-                                                    # else:
-                                                    #     index = c
                                                     index = c
-
-                                    # plt.close()
 
                                     # if index == -1, add the component to the missing components
                                     if index == -1:
