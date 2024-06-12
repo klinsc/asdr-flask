@@ -1484,7 +1484,7 @@ class HandleComponent:
                 color="r",
             )
 
-        # plt.show()
+        plt.show()
         # save hires image
         plt.savefig("cluster_found_components_hires.png", dpi=300)
         plt.close()
