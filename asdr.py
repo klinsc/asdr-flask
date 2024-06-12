@@ -218,10 +218,10 @@ def predict(
         found_components_json = found_components_df.to_json(orient="records")
         missing_components_json = missing_components_df.to_json(orient="records")
         remaining_components_json = remaining_components_df.to_json(orient="records")
-        clustered_found_components_json = clustered_found_components_df.to_json(
-            orient="records"
-        )
-        clustered_hulls = clustered_hulls.to_json(orient="records")
+        # clustered_found_components_json = clustered_found_components_df.to_json(
+        #     orient="records"
+        # )
+        # clustered_hulls = clustered_hulls.to_json(orient="records")
         found_component_hulls = found_component_hulls.to_json(orient="records")
 
         response = make_response(
@@ -230,8 +230,8 @@ def predict(
                 "found_components": found_components_json,
                 "remaining_components": remaining_components_json,
                 "missing_components": missing_components_json,
-                "hulls": clustered_hulls,
-                "clustered_found_components": clustered_found_components_json,
+                # "hulls": clustered_hulls,
+                # "clustered_found_components": clustered_found_components_json,
                 "found_component_hulls": found_component_hulls,
                 "status": "success",
             },
