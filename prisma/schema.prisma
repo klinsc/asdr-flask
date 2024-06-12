@@ -116,6 +116,10 @@ model LineType {
   description       String?
   count             Int                 @default(1)
   drawingTypeId     String
+  marginBottom      Float?
+  marginLeft        Float?
+  marginRight       Float?
+  marginTop         Float?
   drawingType       DrawingType         @relation(fields: [drawingTypeId], references: [id])
   LineTypeComponent LineTypeComponent[]
 
@@ -166,7 +170,7 @@ model LineTypeComponent {
   id            String        @id
   createdAt     DateTime      @default(now())
   updatedAt     DateTime
-  componentType ComponentType @default(mandatory)
+  componentType ComponentType @default(optional)
   count         Int           @default(1)
   lineTypeId    String
   componentId   String
