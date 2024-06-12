@@ -2667,3 +2667,140 @@ class HandleComponent:
 
         finally:
             print(f"---getIdComponents() {time.time() - time_start} seconds ---")
+
+    def correct_missing_component_v6(
+        self,
+        found_components_df: pd.DataFrame,
+        missing_components_df: pd.DataFrame,
+        found_component_hulls: pd.DataFrame,
+        clusternumber_convexhull: pd.DataFrame,
+    ):
+        """
+        For each missing component in missing_components
+            component_positions = []
+            If the component is located inside the hull of the lineTypeName more than once
+                component_positions.append(component)
+        hull_to_plot = []
+        For hull in clusternumber_convexhull
+            If the component is located inside the hull
+                hull_to_plot.append(hull)
+
+        Plot the hull_to_plot
+        """
+        time_start = time.time()
+        try:
+            # get all missing components
+            for i, missing_component in missing_components_df.iterrows():
+                # get the name of the missing component
+                missing_component_name = missing_component["name"]
+
+                # get the component that has the same name as the missing component in the found components
+                components = found_components_df[
+                    found_components_df["name"] == missing_component_name
+                ]
+
+                component_positions = []
+                for i, component in components.iterrows():
+                    appearances = 0
+                    for j, hull in found_component_hulls.iterrows():
+                        # get the position of the component
+                        component_position = ShapelyPoint(
+                            component["center_x"], component["center_y"]
+                        )
+
+                        # get the area of the hull, and make it broader by 10%
+                        hull_area = ShapelyPolygon(hull["points"]).buffer(
+                            0.1, cap_style=3 # type: ignore
+                        )
+
+                        # if the component is located inside the hull
+                        if component_position.within(hull_area):
+                            appearances += 1
+
+                            # # plot the hull and the component
+                            # fig, ax = plt.subplots()
+                            # image = mmcv.imread(self.image_path)
+                            # ax.imshow(image)
+                            # polygon = Polygon(
+                            #     hull["points"],
+                            #     edgecolor="r",
+                            #     facecolor="none",
+                            # )
+                            # ax.add_patch(polygon)
+                            # ax.text(
+                            #     hull["points"][0][0],
+                            #     hull["points"][0][1],
+                            #     f"{hull['foundLineTypeName']}",
+                            #     fontsize=8,
+                            #     color="r",
+                            # )
+                            # ax.scatter(
+                            #     component["center_x"], component["center_y"], color="r"
+                            # )
+                            # plt.show()
+                            # plt.close()
+
+                    if appearances > 0:
+                        component_positions.append(
+                            (component["center_x"], component["center_y"])
+                        )
+
+                print(component_positions)
+
+                # # plot these component positions in the image
+                # fig, ax = plt.subplots()
+                # image = mmcv.imread(self.image_path)
+                # ax.imshow(image)
+                # for position in component_positions:
+                #     ax.scatter(position[0], position[1], color="r")
+                # plt.show()
+                # plt.close()
+
+                # get hulls in clusternumber_convexhull that contain the component
+                hull_to_plot = []
+                for i, hull in clusternumber_convexhull.iterrows():
+                    hull_area = ShapelyPolygon(hull["points"]).buffer(0.1, cap_style=3)
+                    for position in component_positions:
+                        component_position = ShapelyPoint(position[0], position[1])
+                        if component_position.within(hull_area):
+                            hull_to_plot.append(hull)
+
+                # plot the hull_to_plot
+                fig, ax = plt.subplots()
+                image = mmcv.imread(self.image_path)
+                ax.imshow(image)
+
+                for hull in hull_to_plot:
+                    # polygon = Polygon(
+                    #     hull["points"],
+                    #     edgecolor="r",
+                    #     facecolor="none",
+                    # )
+                    # ax.add_patch(polygon)
+                    # make polygon transparent bigger
+                    polygon = Polygon(
+                        hull["points"],
+                        edgecolor="r",
+                        facecolor="r",
+                        alpha=0.5,
+                    )
+                    ax.add_patch(polygon)
+                    ax.text(
+                        hull["points"][0][0],
+                        hull["points"][0][1],
+                        f"{hull['cluster_name']}",
+                        fontsize=8,
+                        color="r",
+                    )
+
+                plt.show()
+                plt.close()
+
+            return
+
+        except Exception as e:
+            print(e)
+            raise e
+
+        finally:
+            print(f"---getIdComponents() {time.time() - time_start} seconds ---")
