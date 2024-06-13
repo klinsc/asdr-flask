@@ -366,10 +366,10 @@ class HandleComponent:
                                     )
 
                                     mandatory_bbox = [
-                                        mandatory_center_xy[0] - marginLeft,
-                                        mandatory_center_xy[1] - marginTop,
-                                        mandatory_center_xy[0] + marginRight,
-                                        mandatory_center_xy[1] + marginBottom,
+                                        mandatory_center_xy[0] - marginLeft-50,
+                                        mandatory_center_xy[1] - marginTop-50,
+                                        mandatory_center_xy[0] + marginRight+50,
+                                        mandatory_center_xy[1] + marginBottom+50,
                                     ]
 
                                     # # plot the mandatory center point and bounding box
@@ -394,7 +394,7 @@ class HandleComponent:
                                     # ax.add_patch(rect)
                                     # plt.savefig("mandatory_center_point.png")
                                     # plt.show()
-                                    # plt.close()
+                                    plt.close()
 
                                 # if the fisrt component is not mandatory, then find the closest component to the mandatory component
                                 elif (
@@ -444,10 +444,10 @@ class HandleComponent:
                                     )
 
                                     mandatory_bbox = [
-                                        mandatory_center_xy[0] - marginLeft,
-                                        mandatory_center_xy[1] - marginTop,
-                                        mandatory_center_xy[0] + marginRight,
-                                        mandatory_center_xy[1] + marginBottom,
+                                        mandatory_center_xy[0] - marginLeft-50,
+                                        mandatory_center_xy[1] - marginTop-50,
+                                        mandatory_center_xy[0] + marginRight+50,
+                                        mandatory_center_xy[1] + marginBottom+50,
                                     ]
 
                                 else:
