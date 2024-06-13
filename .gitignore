@@ -162,3 +162,4 @@ postgres-data/
 temp/
 outputs/
 results.jpg
+binary_image.png
