@@ -1,0 +1,3 @@
+index,xmin,ymin,xmax,ymax,center_x,center_y,confidence,class,predicted_id,name,componentId,color,key,lineTypeId,lineTypeIdNumber,lineTypeName,checked,componentType
+,,,,,,,,,,ss_man_mode,,#F20D3C,72652e1a,clwx2951g0004348cmzaa63q1,clwx2951g0004348cmzaa63q1-1,115_incoming-0-1,False,optional
+,,,,,,,,,,LL,,#0DB2B2,9158d160,clwx2951e0002348cj26enjhl,clwx2951e0002348cj26enjhl-0,115_transformer-2-0,False,optional
