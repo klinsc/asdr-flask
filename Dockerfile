@@ -1,6 +1,6 @@
 # create a docker image for the application of flask with python3.10.12
 
-FROM python:3.11.4
+FROM python:3.10.12
 
 # set the working directory in the container
 WORKDIR /app
