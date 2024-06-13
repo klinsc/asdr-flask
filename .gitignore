@@ -163,3 +163,5 @@ temp/
 outputs/
 results.jpg
 binary_image.png
+found_components.png
+found_components_hires.png
