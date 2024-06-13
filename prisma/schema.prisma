@@ -82,6 +82,7 @@ model DrawingType {
   updatedAt   DateTime   @updatedAt
   name        String     @unique
   description String?
+  display     Boolean    @default(false)
   Drawing     Drawing[]
   LineType    LineType[]
 }
