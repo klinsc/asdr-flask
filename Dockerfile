@@ -20,6 +20,12 @@ RUN apt update && apt install -y libsm6 libxext6 ffmpeg libfontconfig1 libxrende
 # install dependencies
 RUN pip install -r requirements.txt
 
+# install mim
+RUN pip install openmim -q
+RUN mim install "mmengine>=0.6.0" -q
+RUN mim install "mmcv>=2.0.0rc4,<2.1.0" -q
+RUN mim install "mmdet>=3.0.0,<4.0.0" -q
+
 # copy the content of the local src directory to the working directory
 COPY . .
 
