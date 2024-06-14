@@ -9,7 +9,7 @@ WORKDIR /app
 COPY requirements.txt .
 
 # # upgrade apt-get
-# RUN apt-get update && apt-get upgrade -y
+RUN apt-get update && apt-get upgrade -y
 RUN apt-get update && apt install libgl1-mesa-glx -y
 
 # install poppler
