@@ -29,6 +29,9 @@ RUN mim install "mmdet>=3.0.0,<4.0.0" -q
 # copy the content of the local src directory to the working directory
 COPY . .
 
+# install prisma
+RUN pip install -U prisma
+
 # run prisma generate for python
 RUN prisma generate
 
